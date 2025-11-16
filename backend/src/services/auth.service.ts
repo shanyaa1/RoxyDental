@@ -4,6 +4,7 @@ import { hashPassword, comparePassword } from '../utils/bcrypt.util';
 import { generateToken } from '../utils/jwt.util';
 import { AppError } from '../middlewares/error.middleware';
 import { LoginDto, RegisterDto, AuthResponse, ChangePasswordDto } from '../types/auth.types';
+import { emailService } from '../utils/Email.util';
 
 export class AuthService {
   async login(data: LoginDto): Promise<AuthResponse> {
@@ -105,8 +106,31 @@ export class AuthService {
       throw new AppError('Email tidak ditemukan', 404);
     }
 
-    // TODO: Implement email sending logic
-    // For now, just return success
+    const token = emailService.generateResetToken(email);
+    await emailService.sendResetEmail(email, token);
+  }
+
+  async resetPassword(email: string, token: string, newPassword: string): Promise<void> {
+    if (!emailService.verifyResetToken(email, token)) {
+      throw new AppError('Token tidak valid atau sudah kadaluarsa', 400);
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (!user) {
+      throw new AppError('User tidak ditemukan', 404);
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: hashedPassword }
+    });
+
+    emailService.clearResetToken(email);
   }
 
   async changePassword(userId: string, data: ChangePasswordDto): Promise<void> {
@@ -157,48 +181,49 @@ export class AuthService {
   }
 
   async registerDoctor(data: RegisterDto): Promise<AuthResponse> {
-  const { username, email, password, fullName, phone, specialization } = data;
+    const { username, email, password, fullName, phone, specialization } = data;
 
-  const existingUser = await prisma.user.findFirst({
-    where: {
-      OR: [{ username }, { email }]
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ username }, { email }]
+      }
+    });
+
+    if (existingUser) {
+      throw new AppError('Username atau email sudah terdaftar', 400);
     }
-  });
 
-  if (existingUser) {
-    throw new AppError('Username atau email sudah terdaftar', 400);
-  }
+    const hashedPassword = await hashPassword(password);
 
-  const hashedPassword = await hashPassword(password);
+    const user = await prisma.user.create({
+      data: {
+        username,
+        email,
+        passwordHash: hashedPassword,
+        role: UserRole.DOKTER,
+        fullName,
+        phone,
+        specialization,
+        isActive: true
+      }
+    });
 
-  const user = await prisma.user.create({
-    data: {
-      username,
-      email,
-      passwordHash: hashedPassword,
-      role: UserRole.DOKTER, // DOKTER instead of PERAWAT
-      fullName,
-      phone,
-      specialization,
-      isActive: true
-    }
-  });
-
-  const token = generateToken({
-    id: user.id,
-    username: user.username,
-    email: user.email,
-    role: user.role
-  });
-
-  return {
-    user: {
+    const token = generateToken({
       id: user.id,
       username: user.username,
       email: user.email,
-      fullName: user.fullName,
       role: user.role
-    },
-    token
-  };
-}}
+    });
+
+    return {
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role
+      },
+      token
+    };
+  }
+}

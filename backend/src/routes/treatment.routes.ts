@@ -1,0 +1,50 @@
+import { Router } from 'express';
+import { TreatmentController } from '../controllers/treatment.controller';
+import { authMiddleware } from '../middlewares/auth.middleware';
+import { roleMiddleware } from '../middlewares/role.middleware';
+import { uploadMiddleware } from '../middlewares/Upload.middleware';
+import { validate } from '../middlewares/validation.middleware';
+import { updateTreatmentSchema } from '../validators/Treatment.validator';
+import { UserRole } from '../../generated/prisma';
+
+const router = Router();
+const treatmentController = new TreatmentController();
+
+router.get(
+  '/',
+  authMiddleware,
+  roleMiddleware(UserRole.DOKTER),
+  treatmentController.getTreatments
+);
+
+router.get(
+  '/:id',
+  authMiddleware,
+  roleMiddleware(UserRole.DOKTER),
+  treatmentController.getTreatmentById
+);
+
+router.put(
+  '/:id',
+  authMiddleware,
+  roleMiddleware(UserRole.DOKTER),
+  validate(updateTreatmentSchema),
+  treatmentController.updateTreatment
+);
+
+router.delete(
+  '/:id',
+  authMiddleware,
+  roleMiddleware(UserRole.DOKTER),
+  treatmentController.deleteTreatment
+);
+
+router.post(
+  '/upload-images',
+  authMiddleware,
+  roleMiddleware(UserRole.DOKTER),
+  uploadMiddleware.array('images', 5),
+  treatmentController.uploadImages
+);
+
+export default router;

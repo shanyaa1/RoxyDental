@@ -1,67 +1,31 @@
-import express, { Application } from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import helmet from 'helmet';
+import { Router } from 'express';
+import authRoutes from './routes/auth.routes';
+import dashboardRoutes from './routes/dashboard.routes';
+import visitRoutes from './routes/visit.routes';
+import patientRoutes from './routes/patient.routes';
+import scheduleRoutes from './routes/schedule.routes';
+import leaveRoutes from './routes/leave.routes';
+import commissionRoutes from './routes/commission.routes';
+import paymentRoutes from './routes/payment.routes';
+import userRoutes from './routes/user.routes';
+import treatmentRoutes from './routes/treatment.routes';
 
-// Import database
-import { prisma } from './config/database';
+const router = Router();
 
-// Import routes
-import routes from './routes';
+// Auth routes (public & authenticated)
+router.use('/auth', authRoutes);
 
-// Import middleware
-import { errorHandler } from './middlewares/error.middleware';
+// Doctor routes
+router.use('/doctor/dashboard', dashboardRoutes);
+router.use('/doctor/visits', visitRoutes);
+router.use('/doctor/patients', patientRoutes);
+router.use('/doctor/treatments', treatmentRoutes);
+router.use('/doctor/schedules', scheduleRoutes);
+router.use('/doctor/leaves', leaveRoutes);
+router.use('/doctor/finance/commissions', commissionRoutes);
 
-// Load environment variables
-dotenv.config();
+// Shared routes (doctor & nurse with proper role check in middleware)
+router.use('/payments', paymentRoutes);
+router.use('/users', userRoutes);
 
-// Initialize Express app
-const app: Application = express();
-
-// Middleware
-app.use(helmet());
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
-
-// PENTING: Body parser harus sebelum routes
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// DEBUG MIDDLEWARE (Hapus setelah testing)
-app.use((req, res, next) => {
-  console.log('Request:', {
-    method: req.method,
-    url: req.url,
-    body: req.body,
-    contentType: req.headers['content-type']
-  });
-  next();
-});
-
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'RoxyDental API is running' });
-});
-
-// Routes
-app.use('/api', routes);
-
-// Error handling middleware (must be last)
-app.use(errorHandler);
-
-// Start server
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
-
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('Shutting down gracefully...');
-  await prisma.$disconnect();
-  process.exit(0);
-});
+export default router;

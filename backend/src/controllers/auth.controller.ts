@@ -24,10 +24,29 @@ export class AuthController {
     }
   }
 
+  async registerDoctor(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await authService.registerDoctor(req.body);
+      res.status(201).json(successResponse('Registrasi dokter berhasil', result));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async forgotPassword(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       await authService.forgotPassword(req.body.email);
       res.json(successResponse('Link reset password telah dikirim ke email'));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resetPassword(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { email, token, newPassword } = req.body;
+      await authService.resetPassword(email, token, newPassword);
+      res.json(successResponse('Password berhasil direset'));
     } catch (error) {
       next(error);
     }
@@ -50,12 +69,4 @@ export class AuthController {
       next(error);
     }
   }
-
-  async registerDoctor(req: AuthRequest, res: Response, next: NextFunction) {
-  try {
-    const result = await authService.registerDoctor(req.body);
-    res.status(201).json(successResponse('Registrasi dokter berhasil', result));
-    } catch (error) {
-        next(error);
-    }
-}}
+}
