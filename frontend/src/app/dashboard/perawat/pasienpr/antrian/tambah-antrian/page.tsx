@@ -177,10 +177,10 @@ export default function TambahAntrianPage() {
                 variant="outline"
                 className="px-8 border-pink-300 text-pink-700"
                 onClick={() =>
-                  router.push("/dashboard/perawat/pasien/antrian")
+                  router.push("/dashboard/perawat/pasienpr/antrian")
                 }
               >
-                Batal
+                Kembali
               </Button>
 
               <Button className="px-8 bg-pink-600 hover:bg-pink-700 text-white">
