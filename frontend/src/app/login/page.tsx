@@ -52,7 +52,7 @@ export default function LoginPage() {
         if (role === 'DOKTER') {
           router.push('/dashboard/dokter/main');
         } else {
-          router.push('/dashboard/perawat');
+          router.push('/dashboard/perawat/mainpr');
         }
       }
     } catch (err: any) {

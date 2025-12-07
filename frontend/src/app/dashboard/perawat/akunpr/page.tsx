@@ -10,7 +10,6 @@ import {
 import { useProfile } from "@/contexts/ProfileContext";
 import Link from "next/link";
 
-// 🟣 Component Info Item
 function InfoItem({ label, value, icon }: { label: string; value: string; icon: string }) {
   const iconMap: Record<string, React.ReactNode> = {
     id: <CreditCard className="w-5 h-5 text-pink-600" />,
@@ -35,7 +34,6 @@ function InfoItem({ label, value, icon }: { label: string; value: string; icon: 
   );
 }
 
-// 🟡 Jadwal item
 function ScheduleItem({ day, time }: { day: string; time: string }) {
   return (
     <div className="flex items-center justify-between py-2 border-b border-yellow-100 last:border-0">
@@ -47,7 +45,6 @@ function ScheduleItem({ day, time }: { day: string; time: string }) {
   );
 }
 
-// MAIN PAGE
 export default function MedicalStaffDashboard() {
   const { profileData } = useProfile();
 
@@ -66,8 +63,8 @@ export default function MedicalStaffDashboard() {
 
         {/* STATUS AKUN */}
         <section className="mb-8">
-<Card className="rounded-xl bg-white shadow-md w-full">
-  <CardContent className="p-6">
+        <Card className="rounded-xl bg-white shadow-md w-full">
+          <CardContent className="p-6">
 
     {/* GRID: Tengah lebih besar, tapi tidak terlalu mepet kanan */}
     <div className="grid grid-cols-[1fr_4.5fr_1.5fr] gap-6 items-start w-full">

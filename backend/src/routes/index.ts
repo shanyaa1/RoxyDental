@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import authRoutes from './auth.routes';
 import dashboardRoutes from './dashboard.routes';
+import dashboardNurseRoutes from './dashboard-nurse.routes';
 import visitRoutes from './visit.routes';
 import patientRoutes from './patient.routes';
 import scheduleRoutes from './schedule.routes';
@@ -14,6 +15,7 @@ const router = Router();
 
 router.use('/auth', authRoutes);
 router.use('/doctor/dashboard', dashboardRoutes);
+router.use('/nurse/dashboard', dashboardNurseRoutes);
 router.use('/doctor/visits', visitRoutes);
 router.use('/doctor/patients', patientRoutes);
 router.use('/doctor/treatments', treatmentRoutes);
