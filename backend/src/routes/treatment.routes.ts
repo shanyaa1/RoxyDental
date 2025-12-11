@@ -20,8 +20,26 @@ router.get(
 router.get(
   '/:id',
   authMiddleware,
-  roleMiddleware(UserRole.DOKTER),
   treatmentController.getTreatmentById
+);
+
+router.get(
+  '/visit/:visitId',
+  authMiddleware,
+  treatmentController.getTreatmentsByVisit
+);
+
+router.get(
+  '/visit/:visitId/full',
+  authMiddleware,
+  treatmentController.getVisitWithTreatments
+);
+
+router.post(
+  '/',
+  authMiddleware,
+  roleMiddleware(UserRole.DOKTER),
+  treatmentController.createTreatment
 );
 
 router.put(
