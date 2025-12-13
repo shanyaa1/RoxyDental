@@ -117,8 +117,6 @@ export default function TambahAntrianPage() {
         }
       };
 
-      console.log('Payload yang dikirim:', JSON.stringify(payload, null, 2));
-
       await visitService.createVisit(payload);
 
       toast({

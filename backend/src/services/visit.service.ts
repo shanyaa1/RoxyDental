@@ -29,26 +29,40 @@ interface CreateVisitInput {
 
 export class VisitService {
   private async generatePatientNumber(): Promise<string> {
-    const count = await prisma.patient.count();
-    return `P-${String(count + 1).padStart(6, '0')}`;
-  }
-
-  private async generateVisitNumber(): Promise<string> {
     const today = new Date();
-    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
 
-    const todayCount = await prisma.visit.count({
+    const lastPatient = await prisma.patient.findFirst({
       where: {
-        createdAt: {
-          gte: startOfDay,
-          lte: endOfDay
+        patientNumber: {
+          startsWith: `P-${year}${month}`
         }
+      },
+      orderBy: {
+        createdAt: 'desc'
       }
     });
 
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    return `V-${dateStr}-${String(todayCount + 1).padStart(4, '0')}`;
+    let sequence = 1;
+    if (lastPatient) {
+      const lastSequence = parseInt(lastPatient.patientNumber.split('-')[2]);
+      sequence = lastSequence + 1;
+    }
+
+    return `P-${year}${month}-${String(sequence).padStart(4, '0')}`;
+  }
+
+  // ✅ FIX FINAL: visit number dibuat unik tanpa count() (anti race condition)
+  private async generateVisitNumber(): Promise<string> {
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+
+    // 4 digit random + 3 digit millisecond => sangat kecil kemungkinan tabrakan
+    const rand = Math.floor(1000 + Math.random() * 9000); // 1000..9999
+    const ms = String(now.getMilliseconds()).padStart(3, '0'); // 000..999
+
+    return `V-${dateStr}-${rand}${ms}`; // contoh: V-20251212-4837123
   }
 
   private async getNextQueueNumber(): Promise<number> {
@@ -72,13 +86,13 @@ export class VisitService {
 
   async getVisits(page: number = 1, limit: number = 10, status?: VisitStatus, search?: string) {
     const skip = (page - 1) * limit;
-    
+
     const where: any = {};
-    
+
     if (status) {
       where.status = status;
     }
-    
+
     if (search) {
       where.OR = [
         { visitNumber: { contains: search, mode: 'insensitive' } },
@@ -206,39 +220,62 @@ export class VisitService {
       }
     }
 
-    const visitNumber = await this.generateVisitNumber();
     const queueNumber = await this.getNextQueueNumber();
 
-    const newVisit = await prisma.visit.create({
-      data: {
-        patientId: patientRecord.id,
-        nurseId,
-        visitNumber,
-        visitDate: new Date(visit.visitDate),
-        queueNumber,
-        status: VisitStatus.WAITING,
-        chiefComplaint: visit.chiefComplaint,
-        bloodPressure: visit.bloodPressure,
-        notes: visit.notes
-      },
-      include: {
-        patient: true,
-        nurse: {
-          select: {
-            id: true,
-            fullName: true
-          }
-        }
-      }
-    });
+    // ✅ retry kecil untuk jaga-jaga kalau tabrakan visit_number (harusnya hampir tidak mungkin)
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const visitNumber = await this.generateVisitNumber();
 
-    return newVisit;
+      try {
+        const newVisit = await prisma.visit.create({
+          data: {
+            patientId: patientRecord.id,
+            nurseId,
+            visitNumber,
+            visitDate: new Date(visit.visitDate),
+            queueNumber,
+            status: VisitStatus.WAITING,
+            chiefComplaint: visit.chiefComplaint,
+            bloodPressure: visit.bloodPressure,
+            notes: visit.notes
+          },
+          include: {
+            patient: true,
+            nurse: {
+              select: {
+                id: true,
+                fullName: true
+              }
+            }
+          }
+        });
+
+        return newVisit;
+      } catch (err: any) {
+        const isDuplicateVisitNumber =
+          err?.code === 'P2002' &&
+          Array.isArray(err?.meta?.target) &&
+          err.meta.target.includes('visit_number');
+
+        if (isDuplicateVisitNumber && attempt < 5) {
+          continue; // coba lagi generate nomor baru
+        }
+
+        throw err;
+      }
+    }
+
+    throw new AppError('Gagal membuat nomor kunjungan unik', 500);
   }
 
   async getQueue(search?: string) {
     const today = new Date();
-    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
 
     const where: any = {
       visitDate: {

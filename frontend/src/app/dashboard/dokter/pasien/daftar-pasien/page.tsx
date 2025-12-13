@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Search, PlusCircle } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import DoctorNavbar from "@/components/ui/navbardr";
-import { visitService } from "@/services/visit.service";
+import { patientService } from "@/services/patient.service";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
@@ -18,6 +18,12 @@ export default function PatientListPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 100,
+    totalPages: 0
+  });
 
   const tabs = [
     { label: "Daftar Pasien", value: "daftar-pasien", href: "/dashboard/dokter/pasien/daftar-pasien" },
@@ -28,22 +34,19 @@ export default function PatientListPage() {
   const fetchPatients = async () => {
     setLoading(true);
     try {
-      const response = await visitService.getCompletedVisits(1, 100, searchQuery);
-      const visits = response.data?.visits || [];
+      const response = await patientService.getPatients(1, 100, searchQuery);
 
-      const uniquePatients = visits.reduce((acc: any[], visit: any) => {
-        if (!acc.find((p) => p.id === visit.patient.id)) {
-          acc.push({
-            ...visit.patient,
-            lastVisit: visit.visitDate,
-            visitId: visit.id,
-            chiefComplaint: visit.chiefComplaint,
-          });
-        }
-        return acc;
-      }, []);
-
-      setPatients(uniquePatients);
+      if (response.success && response.data) {
+        setPatients(response.data.patients || []);
+        setPagination(response.data.pagination || {
+          total: 0,
+          page: 1,
+          limit: 100,
+          totalPages: 0
+        });
+      } else {
+        setPatients([]);
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -97,7 +100,6 @@ export default function PatientListPage() {
       <DoctorNavbar />
 
       <div className="pt-6 px-6 max-w-7xl mx-auto space-y-6">
-        {/* Tabs */}
         <div className="flex gap-4 mb-4">
           {tabs.map((tab) => {
             const isActive = pathname.includes(tab.value);
@@ -118,7 +120,6 @@ export default function PatientListPage() {
         </div>
 
         <div className="flex items-start gap-6">
-          {/* Search Card */}
           <div className="bg-white rounded-lg shadow-md p-6 w-80">
             <h2 className="text-lg font-bold text-pink-900 mb-4">Daftar Pasien</h2>
             <form onSubmit={handleSearch}>
@@ -137,7 +138,6 @@ export default function PatientListPage() {
             </form>
           </div>
 
-          {/* Table */}
           <div className="flex-1 overflow-x-auto rounded-lg shadow-md bg-white border border-pink-100">
             <table className="min-w-full divide-y divide-pink-200 text-pink-900">
               <thead className="bg-pink-100">
@@ -149,6 +149,7 @@ export default function PatientListPage() {
                     "TGL. LAHIR (UMUR)",
                     "TGL. KUNJUNGAN",
                     "TINDAKAN",
+                   
                   ].map((h) => (
                     <th key={h} className="px-4 py-3 text-left font-semibold text-sm">
                       {h}
@@ -160,7 +161,7 @@ export default function PatientListPage() {
               <tbody className="divide-y divide-pink-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8">
+                    <td colSpan={7} className="text-center py-8">
                       <div className="flex justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600" />
                       </div>
@@ -168,7 +169,7 @@ export default function PatientListPage() {
                   </tr>
                 ) : patients.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-pink-600">
+                    <td colSpan={7} className="px-4 py-8 text-center text-pink-600">
                       Tidak ada data pasien
                     </td>
                   </tr>
@@ -188,26 +189,28 @@ export default function PatientListPage() {
                       <td className="px-4 py-3">
                         {patient.lastVisit ? formatDate(patient.lastVisit) : "-"}
                       </td>
-
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="truncate">
-                            {patient.chiefComplaint && patient.chiefComplaint.trim() !== ""
-                              ? patient.chiefComplaint
-                              : "-"}
-                          </span>
+                        {patient.chiefComplaint && patient.chiefComplaint.trim() !== ""
+                          ? patient.chiefComplaint
+                          : "-"}
+                      </td>
 
+                      {/* AKSI – HANYA DIGANTI BAGIAN INI */}
+                      <td className="px-3 py-3 text-right">
+                        {patient.lastVisitId ? (
                           <button
                             type="button"
                             onClick={() =>
-                              router.push(`/rekam-medis/tambah?rm=${patient.rmNo}`)
+                              router.push(`/dashboard/dokter/pasien/detail/${patient.lastVisitId}`)
                             }
-                            className="p-2 rounded-full hover:bg-pink-200 transition shrink-0"
-                            title="Tambah rekam medis"
+                            className="p-2 rounded-full hover:bg-pink-200 transition"
+                            title="Detail"
                           >
                             <PlusCircle className="h-5 w-5 text-pink-700" />
                           </button>
-                        </div>
+                        ) : (
+                          "-"
+                        )}
                       </td>
                     </tr>
                   ))

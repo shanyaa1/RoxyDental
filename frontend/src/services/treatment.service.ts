@@ -1,4 +1,4 @@
-import apiClient from './api.client';
+import apiClient from "./api.client";
 
 export interface CreateTreatmentData {
   visitId: string;
@@ -21,16 +21,32 @@ export interface UpdateTreatmentData {
   images?: string[];
 }
 
+export interface TreatmentListParams {
+  page?: number;
+  limit?: number;
+  patientId?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+}
+
+export interface TreatmentListResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    treatments: any[];
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+  };
+}
+
 export const treatmentService = {
-  async getTreatments(params?: {
-    page?: number;
-    limit?: number;
-    patientId?: string;
-    startDate?: string;
-    endDate?: string;
-    search?: string;
-  }) {
-    const response = await apiClient.get('/doctor/treatments', { params });
+  async getTreatments(params?: TreatmentListParams): Promise<TreatmentListResponse> {
+    const response = await apiClient.get("/doctor/treatments", { params });
     return response.data;
   },
 
@@ -50,7 +66,7 @@ export const treatmentService = {
   },
 
   async createTreatment(data: CreateTreatmentData) {
-    const response = await apiClient.post('/doctor/treatments', data);
+    const response = await apiClient.post("/doctor/treatments", data);
     return response.data;
   },
 
@@ -66,13 +82,13 @@ export const treatmentService = {
 
   async uploadImages(files: FileList) {
     const formData = new FormData();
-    Array.from(files).forEach(file => {
-      formData.append('images', file);
+    Array.from(files).forEach((file) => {
+      formData.append("images", file);
     });
 
-    const response = await apiClient.post('/doctor/treatments/upload-images', formData, {
+    const response = await apiClient.post("/doctor/treatments/upload-images", formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
+        "Content-Type": "multipart/form-data"
       }
     });
     return response.data;

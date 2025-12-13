@@ -50,4 +50,13 @@ export class PatientController {
       next(error);
     }
   }
+
+  async createPatient(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const patient = await patientService.createPatient(req.body);
+      res.status(201).json(successResponse('Pasien berhasil ditambahkan', patient));
+    } catch (error) {
+      next(error);
+    }
+  }
 }

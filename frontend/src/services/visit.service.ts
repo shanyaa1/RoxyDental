@@ -65,8 +65,6 @@ export const visitService = {
     return response.data;
   },
 
-
-
   async getCompletedVisits(page: number = 1, limit: number = 10, search?: string) {
     const params: any = { page, limit };
     if (search) params.search = search;

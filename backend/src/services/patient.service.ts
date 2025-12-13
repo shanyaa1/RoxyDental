@@ -2,6 +2,31 @@ import { prisma } from '../config/database';
 import { AppError } from '../middlewares/error.middleware';
 
 export class PatientService {
+  private async generatePatientNumber(): Promise<string> {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    
+    const lastPatient = await prisma.patient.findFirst({
+      where: {
+        patientNumber: {
+          startsWith: `P-${year}${month}`
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    let sequence = 1;
+    if (lastPatient) {
+      const lastSequence = parseInt(lastPatient.patientNumber.split('-')[2]);
+      sequence = lastSequence + 1;
+    }
+
+    return `P-${year}${month}-${String(sequence).padStart(4, '0')}`;
+  }
+
   async getPatients(page: number = 1, limit: number = 10, search?: string) {
     const skip = (page - 1) * limit;
 
@@ -36,7 +61,9 @@ export class PatientService {
             },
             take: 1,
             select: {
-              visitDate: true
+              id: true,
+              visitDate: true,
+              chiefComplaint: true
             }
           }
         },
@@ -49,19 +76,21 @@ export class PatientService {
       prisma.patient.count({ where })
     ]);
 
-    const patientsWithVisit = patients.filter(p => p.visits.length > 0).map(p => ({
+    const patientsWithLastVisit = patients.map(p => ({
       ...p,
       lastVisit: p.visits[0]?.visitDate,
+      lastVisitId: p.visits[0]?.id,
+      chiefComplaint: p.visits[0]?.chiefComplaint,
       visits: undefined
     }));
 
     return {
-      patients: patientsWithVisit,
+      patients: patientsWithLastVisit,
       pagination: {
-        total: patientsWithVisit.length,
+        total,
         page,
         limit,
-        totalPages: Math.ceil(patientsWithVisit.length / limit)
+        totalPages: Math.ceil(total / limit)
       }
     };
   }
@@ -78,6 +107,16 @@ export class PatientService {
             nurse: {
               select: {
                 fullName: true
+              }
+            },
+            treatments: {
+              include: {
+                service: true,
+                performer: {
+                  select: {
+                    fullName: true
+                  }
+                }
               }
             }
           },
@@ -220,5 +259,36 @@ export class PatientService {
     });
 
     return treatment;
+  }
+
+  async createPatient(data: any): Promise<any> {
+    const existingPatient = await prisma.patient.findFirst({
+      where: {
+        phone: data.phone
+      }
+    });
+
+    if (existingPatient) {
+      return existingPatient;
+    }
+
+    const patientNumber = await this.generatePatientNumber();
+
+    const patient = await prisma.patient.create({
+      data: {
+        patientNumber,
+        fullName: data.fullName,
+        dateOfBirth: new Date(data.dateOfBirth),
+        gender: data.gender,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        bloodType: data.bloodType,
+        allergies: data.allergies,
+        medicalHistory: data.medicalHistory
+      }
+    });
+
+    return patient;
   }
 }

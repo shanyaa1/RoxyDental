@@ -4,14 +4,13 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import DoctorNavbar from "@/components/ui/navbarpr";
-import { visitService } from "@/services/visit.service";
+import { patientService } from "@/services/patient.service";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
 export default function PatientListPage() {
-  const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
 
@@ -28,29 +27,13 @@ export default function PatientListPage() {
   const fetchPatients = async () => {
     setLoading(true);
     try {
-      const response = await visitService.getCompletedVisits(1, 100, searchQuery);
-      const visits =
-        response?.data?.visits ||
-        response?.data ||
-        response?.visits ||
-        [];
-
-      const uniquePatients = visits.reduce((acc: any[], visit: any) => {
-        if (!visit?.patient) {
-          return acc;
-        }
-        if (!acc.find((p) => p.id === visit.patient.id)) {
-          acc.push({
-            ...visit.patient,
-            lastVisit: visit.visitDate,
-            visitId: visit.id,
-            chiefComplaint: visit.chiefComplaint,
-          });
-        }
-        return acc;
-      }, []);
-
-      setPatients(uniquePatients);
+      const response = await patientService.getPatients(1, 100, searchQuery);
+      
+      if (response.success && response.data) {
+        setPatients(response.data.patients || []);
+      } else {
+        setPatients([]);
+      }
     } catch (error: any) {
       console.error("Error fetching patients:", error);
       toast({

@@ -9,32 +9,13 @@ export class DashboardService {
     const startOfMonth = getStartOfMonth(today);
     const endOfMonth = getEndOfMonth(today);
 
-    const [
-      totalVisits,
-      todayVisits,
-      monthlyVisits,
-      doctorProfile,
-      schedules
-    ] = await Promise.all([
-      prisma.visit.count({
-        where: {
-          treatments: {
-            some: {
-              performedBy: userId
-            }
-          }
-        }
-      }),
+    const [totalVisits, todayVisits, monthlyVisits, doctorProfile, schedules] = await Promise.all([
+      prisma.visit.count(),
       prisma.visit.count({
         where: {
           visitDate: {
             gte: startOfDay,
             lte: endOfDay
-          },
-          treatments: {
-            some: {
-              performedBy: userId
-            }
           }
         }
       }),
@@ -43,11 +24,6 @@ export class DashboardService {
           visitDate: {
             gte: startOfMonth,
             lte: endOfMonth
-          },
-          treatments: {
-            some: {
-              performedBy: userId
-            }
           }
         }
       }),
@@ -158,7 +134,7 @@ export class DashboardService {
       location: '-'
     }));
 
-    schedules.forEach(schedule => {
+    schedules.forEach((schedule) => {
       const dayIndex = new Date(schedule.startDatetime).getDay();
       const startTime = new Date(schedule.startDatetime).toLocaleTimeString('id-ID', {
         hour: '2-digit',

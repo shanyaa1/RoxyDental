@@ -17,5 +17,10 @@ export const patientService = {
   async getPatientById(id: string) {
     const response = await apiClient.get(`/doctor/patients/${id}`);
     return response.data;
+  },
+
+  async createPatient(data: any) {
+    const response = await apiClient.post('/doctor/patients', data);
+    return response.data;
   }
 };
