@@ -8,8 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Search, Eye } from "lucide-react";
 import DoctorNavbar from "@/components/ui/navbardr";
-import { patientService } from "@/services/patient.service";
-import { treatmentService } from "@/services/treatment.service";
+import { patientService, PatientWithVisit } from "@/services/patient.service";
 import { dashboardService } from "@/services/dashboard.service";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,7 +19,7 @@ export default function MedicalRecordsPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows] = useState<PatientWithVisit[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
     total: 0,
@@ -100,43 +99,26 @@ export default function MedicalRecordsPage() {
     }
   };
 
-  const getNoRm = (row: any) => row?.lastVisitNumber || row?.visitNumber || "-";
-  const getNoId = (row: any) => row?.patientNumber || "-";
-  const getNama = (row: any) => row?.fullName || "-";
-  const getTanggal = (row: any) => {
-    const raw = row?.lastVisit || row?.visitDate || row?.createdAt;
+  const getNoRm = (row: PatientWithVisit) => row.lastVisitNumber || "-";
+  const getNoId = (row: PatientWithVisit) => row.patientNumber || "-";
+  const getNama = (row: PatientWithVisit) => row.fullName || "-";
+  const getTanggal = (row: PatientWithVisit) => {
+    const raw = row.lastVisit;
     return raw ? formatDate(raw) : "-";
   };
-  const getDiagnosis = (row: any) => row?.lastDiagnosis || row?.diagnosis || "-";
-  const getTindakan = (row: any) => row?.chiefComplaint || row?.lastServiceName || "-";
-  const getVisitId = (row: any) => row?.lastVisitId || row?.visitId || row?.visit?.id || null;
+  const getDiagnosis = (row: PatientWithVisit) => row.lastDiagnosis || "-";
+  const getTindakan = (row: PatientWithVisit) => row.chiefComplaint || row.lastServiceName || "-";
 
-  const openDetail = async (row: any) => {
-    try {
-      const directVisitId = getVisitId(row);
-      if (directVisitId) {
-        router.push(`/dashboard/dokter/pasien/detail/${directVisitId}`);
-        return;
-      }
-
-      const patientId = row?.id || row?.patientId || row?.patient?.id;
-      if (!patientId) {
-        router.push(`/dashboard/dokter/pasien/detail/`);
-        return;
-      }
-
-      const res = await treatmentService.getTreatments({ page: 1, limit: 1, patientId });
-      const first = res?.data?.treatments?.[0];
-      const resolvedVisitId = first?.visit?.id || first?.visitId;
-
-      if (resolvedVisitId) {
-        router.push(`/dashboard/dokter/pasien/detail/${resolvedVisitId}`);
-        return;
-      }
-
-      router.push(`/dashboard/dokter/pasien/detail/`);
-    } catch {
-      router.push(`/dashboard/dokter/pasien/detail/`);
+  const openDetail = (row: PatientWithVisit) => {
+    const visitNumber = row.lastVisitNumber;
+    if (visitNumber) {
+      router.push(`/dashboard/dokter/pasien/rekam-medis/${visitNumber}`);
+    } else {
+      toast({
+        title: "Error",
+        description: "Nomor rekam medis tidak ditemukan",
+        variant: "destructive"
+      });
     }
   };
 

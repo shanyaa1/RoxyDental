@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import DoctorNavbar from "@/components/ui/navbarpr";
-import { patientService } from "@/services/patient.service";
+import { patientService, PatientWithVisit } from "@/services/patient.service";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
@@ -15,7 +15,7 @@ export default function PatientListPage() {
   const { toast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [patients, setPatients] = useState<any[]>([]);
+  const [patients, setPatients] = useState<PatientWithVisit[]>([]);
   const [loading, setLoading] = useState(false);
 
   const tabs = [

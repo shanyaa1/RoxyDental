@@ -8,9 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Search, Eye } from "lucide-react";
 import DoctorNavbar from "@/components/ui/navbarpr";
-import { patientService } from "@/services/patient.service";
+import { patientService, PatientWithVisit } from "@/services/patient.service";
 import { dashboardNurseService } from "@/services/dashboard-nurse.service";
-import { treatmentService } from "@/services/treatment.service";
 import { useToast } from "@/hooks/use-toast";
 
 export default function MedicalRecordsPage() {
@@ -20,7 +19,7 @@ export default function MedicalRecordsPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows] = useState<PatientWithVisit[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
     total: 0,
@@ -28,7 +27,7 @@ export default function MedicalRecordsPage() {
     limit: 20,
     totalPages: 0
   });
-  const [currentDoctorName, setCurrentDoctorName] = useState<string>("-");
+  const [currentNurseName, setCurrentNurseName] = useState<string>("-");
 
   const tabs = useMemo(
     () => [
@@ -44,9 +43,9 @@ export default function MedicalRecordsPage() {
       try {
         const res = await dashboardNurseService.getNurseSummary();
         const name = res?.data?.profile?.fullName;
-        if (name) setCurrentDoctorName(name);
+        if (name) setCurrentNurseName(name);
       } catch {
-        setCurrentDoctorName("-");
+        setCurrentNurseName("-");
       }
     })();
   }, []);
@@ -100,43 +99,26 @@ export default function MedicalRecordsPage() {
     }
   };
 
-  const getNoRm = (row: any) => row?.lastVisitNumber || row?.visitNumber || "-";
-  const getNoId = (row: any) => row?.patientNumber || "-";
-  const getNama = (row: any) => row?.fullName || "-";
-  const getTanggal = (row: any) => {
-    const raw = row?.lastVisit || row?.visitDate || row?.createdAt;
+  const getNoRm = (row: PatientWithVisit) => row.lastVisitNumber || "-";
+  const getNoId = (row: PatientWithVisit) => row.patientNumber || "-";
+  const getNama = (row: PatientWithVisit) => row.fullName || "-";
+  const getTanggal = (row: PatientWithVisit) => {
+    const raw = row.lastVisit;
     return raw ? formatDate(raw) : "-";
   };
-  const getDiagnosis = (row: any) => row?.lastDiagnosis || row?.diagnosis || "-";
-  const getTindakan = (row: any) => row?.chiefComplaint || row?.lastServiceName || "-";
-  const getVisitId = (row: any) => row?.lastVisitId || row?.visitId || row?.visit?.id || null;
+  const getDiagnosis = (row: PatientWithVisit) => row.lastDiagnosis || "-";
+  const getTindakan = (row: PatientWithVisit) => row.chiefComplaint || row.lastServiceName || "-";
 
-  const openDetail = async (row: any) => {
-    try {
-      const directVisitId = getVisitId(row);
-      if (directVisitId) {
-        router.push(`/dashboard/perawat/pasienpr/rekam-medis/${directVisitId}`);
-        return;
-      }
-
-      const patientId = row?.id || row?.patientId || row?.patient?.id;
-      if (!patientId) {
-        router.push(`/dashboard/perawat/pasienpr/rekam-medis/`);
-        return;
-      }
-
-      const res = await treatmentService.getTreatments({ page: 1, limit: 1, patientId });
-      const first = res?.data?.treatments?.[0];
-      const resolvedVisitId = first?.visit?.id || first?.visitId;
-
-      if (resolvedVisitId) {
-        router.push(`/dashboard/perawat/pasienpr/rekam-medis/${resolvedVisitId}`);
-        return;
-      }
-
-      router.push(`/dashboard/perawat/pasienpr/rekam-medis/`);
-    } catch {
-      router.push(`/dashboard/perawat/pasienpr/rekam-medis/`);
+  const openDetail = (row: PatientWithVisit) => {
+    const visitNumber = row.lastVisitNumber;
+    if (visitNumber) {
+      router.push(`/dashboard/perawat/pasienpr/rekam-medis/detail/${visitNumber}`);
+    } else {
+      toast({
+        title: "Error",
+        description: "Nomor rekam medis tidak ditemukan",
+        variant: "destructive"
+      });
     }
   };
 
@@ -183,7 +165,7 @@ export default function MedicalRecordsPage() {
           <table className="min-w-full divide-y divide-pink-200">
             <thead className="bg-pink-100 text-pink-900">
               <tr>
-                {["NO. RM", "NO. ID", "NAMA PASIEN", "TANGGAL", "DOKTER", "DIAGNOSIS", "TINDAKAN", "AKSI"].map(
+                {["NO. RM", "NO. ID", "NAMA PASIEN", "TANGGAL", "PERAWAT", "DIAGNOSIS", "TINDAKAN", "AKSI"].map(
                   (head) => (
                     <th key={head} className="px-4 py-3 text-left font-semibold text-sm">
                       {head}
@@ -215,7 +197,7 @@ export default function MedicalRecordsPage() {
                     <td className="px-4 py-2">{getNoId(row)}</td>
                     <td className="px-4 py-2 font-medium">{getNama(row)}</td>
                     <td className="px-4 py-2">{getTanggal(row)}</td>
-                    <td className="px-4 py-2">{currentDoctorName}</td>
+                    <td className="px-4 py-2">{currentNurseName}</td>
                     <td className="px-4 py-2">
                       <Badge variant="secondary">{getDiagnosis(row)}</Badge>
                     </td>

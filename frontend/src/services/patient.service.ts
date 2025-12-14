@@ -1,5 +1,24 @@
 import apiClient from './api.client';
 
+export interface PatientWithVisit {
+  id: string;
+  patientNumber: string;
+  fullName: string;
+  gender: string;
+  dateOfBirth: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  bloodType?: string;
+  allergies?: string;
+  lastVisit?: string;
+  lastVisitId?: string;
+  lastVisitNumber?: string;
+  chiefComplaint?: string;
+  lastDiagnosis?: string;
+  lastServiceName?: string;
+}
+
 export const patientService = {
   async getPatients(page: number = 1, limit: number = 100, search?: string) {
     try {

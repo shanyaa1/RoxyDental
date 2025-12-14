@@ -44,7 +44,6 @@ export default function QueuePage() {
   const fetchQueue = async () => {
     setLoading(true);
     try {
-      // ⬅️ PAKAI getNurseQueue, bukan getQueue
       const data = await visitService.getNurseQueue(searchQuery);
       setQueues(Array.isArray(data) ? data : []);
     } catch (error: any) {
@@ -63,9 +62,11 @@ export default function QueuePage() {
 
   useEffect(() => {
     fetchQueue();
+  }, []);
+
+  useEffect(() => {
     const interval = setInterval(fetchQueue, 10000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
   const handleStatusChange = async (
@@ -73,8 +74,7 @@ export default function QueuePage() {
     newStatus: VisitStatusType
   ) => {
     try {
-      // pastikan yang dikirim ke service bertipe VisitStatusType
-      await visitService.updateVisitStatus(visitId, newStatus as VisitStatusType);
+      await visitService.updateVisitStatus(visitId, newStatus);
       toast({
         title: "Berhasil",
         description: "Status berhasil diubah",
@@ -121,7 +121,6 @@ export default function QueuePage() {
       <DoctorNavbar />
 
       <div className="pt-6 px-6 max-w-7xl mx-auto space-y-6">
-        {/* Tabs */}
         <div className="flex gap-4 mb-4">
           {tabs.map((tab) => {
             const isActive = pathname.includes(tab.value);
@@ -143,7 +142,6 @@ export default function QueuePage() {
 
         <h1 className="text-2xl font-bold text-pink-900">Daftar Antrian</h1>
 
-        {/* Search + Tambah */}
         <div className="mb-4 w-full flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 w-full max-w-sm">
             <Search className="w-5 h-5 text-pink-400" />
@@ -165,7 +163,6 @@ export default function QueuePage() {
           </Button>
         </div>
 
-        {/* Tabel Antrian */}
         <div className="overflow-x-auto rounded-lg shadow-md bg-white border border-pink-100">
           <table className="min-w-full divide-y divide-pink-200 text-pink-900">
             <thead className="bg-pink-100">
