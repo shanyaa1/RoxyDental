@@ -13,8 +13,7 @@ export class DashboardNurseService {
       totalVisits,
       todayVisits,
       monthlyVisits,
-      nurseProfile,
-      schedules
+      nurseProfile
     ] = await Promise.all([
       prisma.visit.count({
         where: {
@@ -54,31 +53,42 @@ export class DashboardNurseService {
           isActive: true,
           createdAt: true
         }
-      }),
-      prisma.schedule.findMany({
-        where: {
-          userId,
-          startDatetime: {
-            gte: startOfDay,
-            lte: new Date(startOfDay.getTime() + 7 * 24 * 60 * 60 * 1000)
-          }
-        },
-        orderBy: {
-          startDatetime: 'asc'
-        }
       })
     ]);
+
+    const schedules = await this.generateScheduleFromVisits(userId);
 
     return {
       totalVisits,
       todayVisits,
       monthlyVisits,
       profile: nurseProfile,
-      schedules: this.formatSchedules(schedules)
+      schedules
     };
   }
 
-  private formatSchedules(schedules: any[]) {
+  private async generateScheduleFromVisits(userId: string) {
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 7);
+
+    const visits = await prisma.visit.findMany({
+      where: {
+        nurseId: userId,
+        visitDate: {
+          gte: startOfWeek,
+          lt: endOfWeek
+        }
+      },
+      orderBy: {
+        visitDate: 'asc'
+      }
+    });
+
     const daysOfWeek = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const weekSchedule = Array(7).fill(null).map((_, index) => ({
       day: daysOfWeek[index],
@@ -87,25 +97,47 @@ export class DashboardNurseService {
       location: '-'
     }));
 
-    schedules.forEach(schedule => {
-      const dayIndex = new Date(schedule.startDatetime).getDay();
-      const startTime = new Date(schedule.startDatetime).toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
-      const endTime = new Date(schedule.endDatetime).toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
+    const groupedByDay: { [key: number]: Date[] } = {};
+    
+    visits.forEach(visit => {
+      const visitDate = new Date(visit.visitDate);
+      const dayIndex = visitDate.getDay();
+      
+      if (!groupedByDay[dayIndex]) {
+        groupedByDay[dayIndex] = [];
+      }
+      groupedByDay[dayIndex].push(visitDate);
+    });
 
-      weekSchedule[dayIndex] = {
-        day: daysOfWeek[dayIndex],
-        start: startTime,
-        end: endTime,
-        location: schedule.location || '-'
-      };
+    Object.keys(groupedByDay).forEach(dayIndexStr => {
+      const dayIndex = parseInt(dayIndexStr);
+      const times = groupedByDay[dayIndex];
+      
+      if (times.length > 0) {
+        times.sort((a, b) => a.getTime() - b.getTime());
+        
+        const earliestTime = times[0];
+        const latestTime = times[times.length - 1];
+        
+        const startTime = earliestTime.toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+        
+        const endTime = latestTime.toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+
+        weekSchedule[dayIndex] = {
+          day: daysOfWeek[dayIndex],
+          start: startTime,
+          end: endTime,
+          location: 'RoxyDental Clinic'
+        };
+      }
     });
 
     return weekSchedule;

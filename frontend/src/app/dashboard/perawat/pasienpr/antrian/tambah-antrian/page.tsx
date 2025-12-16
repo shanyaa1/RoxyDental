@@ -24,6 +24,7 @@ interface FormData {
   phone: string;
   dateOfBirth: string;
   address: string;
+  visitDate: string;
   visitTime: string;
   chiefComplaint: string;
   notes: string;
@@ -41,12 +42,12 @@ export default function TambahAntrianPage() {
     phone: "",
     dateOfBirth: "",
     address: "",
+    visitDate: "",
     visitTime: "",
     chiefComplaint: "",
     notes: "",
   });
 
-  // ================== VALIDASI ==================
   const validateForm = (): boolean => {
     if (!formData.fullName.trim()) {
       toast({
@@ -75,6 +76,15 @@ export default function TambahAntrianPage() {
       return false;
     }
 
+    if (!formData.visitDate) {
+      toast({
+        title: "Error Validasi",
+        description: "Tanggal kunjungan harus diisi",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     if (!formData.visitTime) {
       toast({
         title: "Error Validasi",
@@ -87,7 +97,6 @@ export default function TambahAntrianPage() {
     return true;
   };
 
-  // ================== SUBMIT ==================
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -96,40 +105,32 @@ export default function TambahAntrianPage() {
     setLoading(true);
 
     try {
-      // gabungkan tanggal hari ini + jam dari form
-      const today = new Date();
       const [hoursStr, minutesStr] = formData.visitTime.split(":");
       const hours = parseInt(hoursStr || "0", 10);
       const minutes = parseInt(minutesStr || "0", 10);
 
-      const visitDate = new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        today.getDate(),
-        hours,
-        minutes,
-        0,
-        0
-      );
+      const visitDateParts = formData.visitDate.split("-");
+      const year = parseInt(visitDateParts[0], 10);
+      const month = parseInt(visitDateParts[1], 10) - 1;
+      const day = parseInt(visitDateParts[2], 10);
+
+      const visitDateTime = new Date(year, month, day, hours, minutes, 0, 0);
 
       const payload: CreateVisitData = {
         patient: {
           fullName: formData.fullName.trim(),
-          dateOfBirth: formData.dateOfBirth, // "YYYY-MM-DD"
+          dateOfBirth: formData.dateOfBirth,
           gender: formData.gender,
           phone: formData.phone.trim(),
           address: formData.address.trim() || undefined,
         },
         visit: {
-          visitDate: visitDate.toISOString(),
+          visitDate: visitDateTime.toISOString(),
           chiefComplaint: formData.chiefComplaint.trim() || undefined,
           notes: formData.notes.trim() || undefined,
-          // status tidak dikirim => backend default WAITING
         },
       };
 
-      // 🔴 SEBELUMNYA: await visitService.createVisit(payload);
-      // ✅ PERAWAT PAKAI ENDPOINT NURSE:
       await visitService.createVisitAsNurse(payload);
 
       toast({
@@ -165,7 +166,6 @@ export default function TambahAntrianPage() {
     router.push("/dashboard/perawat/pasienpr/antrian");
   };
 
-  // ================== UI ==================
   return (
     <div className="min-h-screen bg-linear-to-br from-pink-50 to-rose-50">
       <DoctorNavbar />
@@ -180,7 +180,6 @@ export default function TambahAntrianPage() {
         </h1>
 
         <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden border-2 border-pink-100">
-          {/* Header Card */}
           <div className="bg-linear-to-r from-pink-500 via-rose-500 to-pink-600 text-white px-8 py-6">
             <h2 className="font-bold text-2xl flex items-center gap-3">
               <Users size={28} />
@@ -192,9 +191,7 @@ export default function TambahAntrianPage() {
             </p>
           </div>
 
-          {/* Form */}
           <form className="p-8 space-y-6" onSubmit={handleSubmit}>
-            {/* Nama */}
             <div>
               <label className="text-pink-900 text-sm font-bold block mb-2">
                 Nama Pasien <span className="text-red-500">*</span>
@@ -215,7 +212,6 @@ export default function TambahAntrianPage() {
               />
             </div>
 
-            {/* Tanggal lahir & jenis kelamin */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
                 <label className="text-pink-900 text-sm font-bold block mb-2">
@@ -260,24 +256,60 @@ export default function TambahAntrianPage() {
               </div>
             </div>
 
-            {/* Telepon & Jam */}
+            <div>
+              <label className="text-pink-900 text-sm font-bold block mb-2">
+                No. Telepon <span className="text-red-500">*</span>
+              </label>
+              <Input
+                type="tel"
+                placeholder="08xxxxxxxxxx"
+                value={formData.phone}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    phone: e.target.value,
+                  }))
+                }
+                className="border-2 border-pink-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-300 text-base"
+                maxLength={15}
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label className="text-pink-900 text-sm font-bold block mb-2">
+                Alamat
+              </label>
+              <Input
+                type="text"
+                placeholder="Opsional"
+                value={formData.address}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    address: e.target.value,
+                  }))
+                }
+                className="border-2 border-pink-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-300 text-base"
+                disabled={loading}
+              />
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
                 <label className="text-pink-900 text-sm font-bold block mb-2">
-                  No. Telepon <span className="text-red-500">*</span>
+                  Tanggal Kunjungan <span className="text-red-500">*</span>
                 </label>
                 <Input
-                  type="tel"
-                  placeholder="08xxxxxxxxxx"
-                  value={formData.phone}
+                  type="date"
+                  value={formData.visitDate}
                   onChange={(e) =>
                     setFormData((prev) => ({
                       ...prev,
-                      phone: e.target.value,
+                      visitDate: e.target.value,
                     }))
                   }
                   className="border-2 border-pink-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-300 text-base"
-                  maxLength={15}
                   disabled={loading}
                 />
               </div>
@@ -301,27 +333,6 @@ export default function TambahAntrianPage() {
               </div>
             </div>
 
-            {/* Alamat */}
-            <div>
-              <label className="text-pink-900 text-sm font-bold block mb-2">
-                Alamat
-              </label>
-              <Input
-                type="text"
-                placeholder="Opsional"
-                value={formData.address}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    address: e.target.value,
-                  }))
-                }
-                className="border-2 border-pink-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-300 text-base"
-                disabled={loading}
-              />
-            </div>
-
-            {/* Tindakan (chief complaint) */}
             <div>
               <label className="text-pink-900 text-sm font-bold block mb-2">
                 Tindakan / Keluhan Utama
@@ -341,14 +352,13 @@ export default function TambahAntrianPage() {
               />
             </div>
 
-            {/* Catatan */}
             <div>
               <label className="text-pink-900 text-sm font-bold block mb-2">
                 Catatan Tambahan
               </label>
               <Input
                 type="text"
-                placeholder="Opsional (contoh: alergi obat tertentu)"
+                placeholder="Opsional"
                 value={formData.notes}
                 onChange={(e) =>
                   setFormData((prev) => ({
@@ -361,7 +371,6 @@ export default function TambahAntrianPage() {
               />
             </div>
 
-            {/* Tombol Aksi */}
             <div className="mt-8 border-t-2 border-pink-100 bg-pink-50/80">
               <div className="flex justify-center gap-4 py-4">
                 <Button

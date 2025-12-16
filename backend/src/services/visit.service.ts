@@ -407,17 +407,18 @@ export class VisitService {
 
   async getQueue(search?: string) {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    const startOfDay = new Date(today);
-    startOfDay.setHours(0, 0, 0, 0);
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(today.getDate() - 7);
 
-    const endOfDay = new Date(today);
-    endOfDay.setHours(23, 59, 59, 999);
+    const sevenDaysAhead = new Date(today);
+    sevenDaysAhead.setDate(today.getDate() + 7);
 
     const where: any = {
       visitDate: {
-        gte: startOfDay,
-        lte: endOfDay,
+        gte: sevenDaysAgo,
+        lte: sevenDaysAhead,
       },
       status: {
         in: [VisitStatus.WAITING, VisitStatus.IN_PROGRESS],
