@@ -555,4 +555,88 @@ export class VisitService {
       },
     };
   }
+
+  async updateVisit(id: string, data: Partial<CreateVisitData>) {
+    const visit = await prisma.visit.findUnique({ where: { id } });
+    
+    if (!visit) {
+      throw new AppError("Kunjungan tidak ditemukan", 404);
+    }
+
+    const updateData: any = {};
+    
+    if (data.visitDate) updateData.visitDate = new Date(data.visitDate);
+    if (data.chiefComplaint !== undefined) updateData.chiefComplaint = data.chiefComplaint;
+    if (data.bloodPressure !== undefined) updateData.bloodPressure = data.bloodPressure;
+    if (data.notes !== undefined) updateData.notes = data.notes;
+
+    return await prisma.visit.update({
+      where: { id },
+      data: updateData,
+      include: {
+        patient: true,
+        nurse: {
+          select: {
+            id: true,
+            fullName: true,
+          },
+        },
+        treatments: {
+          include: {
+            service: true,
+            performer: {
+              select: {
+                id: true,
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async updateVisitExamination(
+    id: string,
+    data: {
+      chiefComplaint?: string;
+      bloodPressure?: string;
+      notes?: string;
+    }
+  ) {
+    const visit = await prisma.visit.findUnique({ where: { id } });
+    
+    if (!visit) {
+      throw new AppError("Kunjungan tidak ditemukan", 404);
+    }
+
+    return await prisma.visit.update({
+      where: { id },
+      data: {
+        chiefComplaint: data.chiefComplaint,
+        bloodPressure: data.bloodPressure,
+        notes: data.notes,
+      },
+      include: {
+        patient: true,
+        nurse: {
+          select: {
+            id: true,
+            fullName: true,
+          },
+        },
+        treatments: {
+          include: {
+            service: true,
+            performer: {
+              select: {
+                id: true,
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
 }

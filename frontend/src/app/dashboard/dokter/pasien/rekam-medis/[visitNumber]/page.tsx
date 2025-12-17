@@ -1,26 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Download, Printer, Loader2, Pencil } from "lucide-react";
+import {
+  ArrowLeft,
+  Download,
+  Printer,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import DoctorNavbar from "@/components/ui/navbardr";
+import { visitService, Visit } from "@/services/visit.service";
+import { treatmentService } from "@/services/treatment.service";
+import { useToast } from "@/hooks/use-toast";
 
-/* ========== TYPES ========== */
 interface Medication {
   id?: string;
   name: string;
   dosage: string;
   duration: string;
   instructions?: string;
-}
-
-interface Visit {
-  date: string;
-  doctor: string;
-  action: string;
-  diagnosis: string;
+  serviceId?: string;
 }
 
 interface Examination {
@@ -29,133 +34,305 @@ interface Examination {
   treatmentPlan: string;
 }
 
-interface RecordType {
-  rmNo: string;
-  noId?: string;
-  name?: string;
-  age?: number;
-  gender?: string;
-  birthDate?: string;
-  address?: string;
-  notes?: string;
-  phone?: string;
-  catatan?: string;
-  clinicLogoUrl?: string;
-  visit?: {
-    date?: string;
-    doctor?: string;
-    action?: string;
-    diagnosis?: string;
-  };
-  examination?: {
-    chiefComplaint?: string;
-    physical?: string;
-    treatmentPlan?: string;
-    note?: string;
-  };
-  medications?: Medication[];
-}
-
-/* ========== DUMMY DATA ========== */
-const dummyRecords: RecordType[] = Array.from({ length: 30 }).map((_, i) => ({
-  rmNo: `RM-${(i + 1).toString().padStart(3, "0")}`,
-  noId: `008-00${900 + i}`,
-  name: `Adil Kasun Sweger`,
-  age: 35,
-  gender: "Laki-laki",
-  birthDate: "15 Mei 1990",
-  address: "Jl. Merdeka No. 123, Jakarta Selatan",
-  phone: "+62 812-3456-7890",
-  bloodType: "A+",
-  catatan: "Penisilin, Kacang",
-  visit: {
-    date: "17 Juli 2025",
-    doctor: "dr. Sarah Aminah",
-    action: "Scaling Class 1",
-    diagnosis: i % 3 === 0 ? "Kalkulus supragingiva" : "Karies dentini",
-  },
-  examination: {
-    chiefComplaint:
-      "Pasien mengeluhkan adanya karang gigi dan gusi berdarah saat menyikat gigi",
-    physical:
-      "Terlihat kalkulus supragingiva pada regio anterior rahang bawah dan atas. Gingiva terlihat meradang dengan warna kemerahan.",
-    treatmentPlan: "Scaling dan pembersihan menyeluruh, edukasi kebersihan mulut",
-  },
-  medications:
-    i % 2 === 0
-      ? [
-          {
-            id: "m1",
-            name: "Chlorhexidine Mouthwash 0.2%",
-            dosage: "2x sehari",
-            duration: "7 hari",
-            instructions: "Berkumur 15 ml selama 30 detik",
-          },
-          {
-            id: "m2",
-            name: "Asam Mefenamat 500mg",
-            dosage: "3x1 tablet",
-            duration: "3 hari jika nyeri",
-            instructions: "Diminum setelah makan",
-          },
-        ]
-      : [],
-}));
-
-/* ========== COMPONENT ========== */
 export default function RekamMedisDetailPage() {
-  const [selectedRm] = useState("RM-001");
+  // ✅ Fix "id merah" / typing params
+  const { visitNumber } = useParams<{ visitNumber: string }>();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const medicalRecordNumber = visitNumber;
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [visit, setVisit] = useState<Visit | null>(null);
 
-  const rm = selectedRm.trim();
-  const found = dummyRecords.find((r) => r.rmNo.toLowerCase() === rm.toLowerCase());
-
-  // main editable state (data)
-  const [data, setData] = useState<RecordType | undefined>(found);
-
-  // edit toggles
-  const [editVisit, setEditVisit] = useState(false);
+  const [editDiagnosis, setEditDiagnosis] = useState(false);
   const [editExam, setEditExam] = useState(false);
   const [editMeds, setEditMeds] = useState(false);
   const [editNotes, setEditNotes] = useState(false);
-  const [notesDraft, setNotesDraft] = useState(data?.notes ?? "");
 
-
-  // ===== medsDraft: inisialisasi dari data (jangan pakai meds sebelum dideklarasikan) =====
-  const [medsDraft, setMedsDraft] = useState<Medication[]>(data?.medications ?? []);
-
-  // safe draft states (never undefined)
-  const emptyVisit: Visit = { date: "", doctor: "", action: "", diagnosis: "" };
-  const emptyExam: Examination = { chiefComplaint: "", physical: "", treatmentPlan: "" };
-
-  const [visitDraft, setVisitDraft] = useState<Visit>({
-    date: data?.visit?.date ?? "",
-    doctor: data?.visit?.doctor ?? "",
-    action: data?.visit?.action ?? "",
-    diagnosis: data?.visit?.diagnosis ?? "",
-  });
+  const [diagnosisDraft, setDiagnosisDraft] = useState("");
 
   const [examDraft, setExamDraft] = useState<Examination>({
-    chiefComplaint: data?.examination?.chiefComplaint ?? "",
-    physical: data?.examination?.physical ?? "",
-    treatmentPlan: data?.examination?.treatmentPlan ?? "",
+    chiefComplaint: "",
+    physical: "",
+    treatmentPlan: "",
   });
+
+  const [medsDraft, setMedsDraft] = useState<Medication[]>([]);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [deletedMedIds, setDeletedMedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!medicalRecordNumber) return;
+    fetchVisitData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [medicalRecordNumber]);
+
+  const fetchVisitData = async () => {
+    try {
+      setLoading(true);
+
+      const response = await visitService.getVisitByMedicalRecord(
+        medicalRecordNumber
+      );
+      setVisit(response);
+
+      const firstTreatment = response.treatments?.[0];
+      setDiagnosisDraft(firstTreatment?.diagnosis || "");
+
+      setExamDraft({
+        chiefComplaint: response.chiefComplaint || "",
+        physical: response.bloodPressure || "",
+        treatmentPlan: response.notes || "",
+      });
+
+      const extractedMeds =
+        response.treatments?.map((t: any) => ({
+          id: t.id,
+          name: t.service?.serviceName || "",
+          dosage: `${t.quantity ?? 1}`,
+          duration: "Sesuai kebutuhan",
+          instructions: t.treatmentNotes || "",
+          serviceId: t.service?.id || "",
+        })) || [];
+      setMedsDraft(extractedMeds);
+
+      setNotesDraft(response.notes || "");
+      setDeletedMedIds([]);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description:
+          error?.response?.data?.message || "Gagal memuat data rekam medis",
+        variant: "destructive",
+      });
+      router.push("/dashboard/dokter/pasien/rekam-medis");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveDiagnosis = async () => {
+    if (!visit || !visit.treatments?.[0]) return;
+
+    try {
+      setSaving(true);
+      const firstTreatment: any = visit.treatments[0];
+
+      await treatmentService.updateTreatment(firstTreatment.id, {
+        diagnosis: diagnosisDraft,
+      });
+
+      await fetchVisitData();
+      setEditDiagnosis(false);
+
+      toast({
+        title: "Berhasil",
+        description: "Diagnosis berhasil diupdate",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description:
+          error?.response?.data?.message || "Gagal menyimpan diagnosis",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveExam = async () => {
+    if (!visit) return;
+
+    try {
+      setSaving(true);
+      await visitService.updateVisitExamination((visit as any).id, {
+        chiefComplaint: examDraft.chiefComplaint,
+        bloodPressure: examDraft.physical,
+        notes: examDraft.treatmentPlan,
+      });
+
+      setVisit((prev) =>
+        prev
+          ? ({
+              ...prev,
+              chiefComplaint: examDraft.chiefComplaint,
+              bloodPressure: examDraft.physical,
+              notes: examDraft.treatmentPlan,
+            } as any)
+          : prev
+      );
+
+      setEditExam(false);
+      toast({
+        title: "Berhasil",
+        description: "Detail pemeriksaan berhasil diupdate",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description:
+          error?.response?.data?.message || "Gagal menyimpan perubahan",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveMeds = async () => {
+    if (!visit) return;
+
+    try {
+      setSaving(true);
+
+      // hapus meds yang ditandai
+      for (const medId of deletedMedIds) {
+        await treatmentService.deleteTreatment(medId);
+      }
+
+      // update/create meds
+      for (const med of medsDraft) {
+        if (med.id) {
+          await treatmentService.updateTreatment(med.id, {
+            treatmentNotes: med.instructions,
+            quantity: parseInt(med.dosage, 10) || 1,
+          });
+        } else {
+          if (!med.name.trim()) continue;
+
+          await treatmentService.createTreatment({
+            visitId: (visit as any).id,
+            serviceId: med.serviceId || "",
+            performerId:
+              (visit as any).treatments?.[0]?.performer?.id || "",
+            diagnosis: (visit as any).treatments?.[0]?.diagnosis || "",
+            treatmentNotes: med.instructions || "",
+            quantity: parseInt(med.dosage, 10) || 1,
+          });
+        }
+      }
+
+      await fetchVisitData();
+      setEditMeds(false);
+
+      toast({
+        title: "Berhasil",
+        description: "Obat berhasil disimpan",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description:
+          error?.response?.data?.message || "Gagal menyimpan perubahan obat",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    if (!visit) return;
+
+    try {
+      setSaving(true);
+      await visitService.updateVisitExamination((visit as any).id, {
+        notes: notesDraft,
+      });
+
+      setVisit((prev) => (prev ? ({ ...prev, notes: notesDraft } as any) : prev));
+      setEditNotes(false);
+
+      toast({
+        title: "Berhasil",
+        description: "Catatan berhasil diupdate",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.response?.data?.message || "Gagal menyimpan catatan",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addNewMedication = () => {
+    setMedsDraft([
+      ...medsDraft,
+      {
+        name: "",
+        dosage: "1",
+        duration: "Sesuai kebutuhan",
+        instructions: "",
+        serviceId: "",
+      },
+    ]);
+  };
+
+  const removeMedication = (index: number) => {
+    const med = medsDraft[index];
+    if (med?.id) setDeletedMedIds([...deletedMedIds, med.id]);
+
+    const newMeds = medsDraft.filter((_, idx) => idx !== index);
+    setMedsDraft(newMeds);
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+    } catch {
+      return "-";
+    }
+  };
+
+  const calculateAge = (birthDate: string) => {
+    try {
+      const birth = new Date(birthDate);
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const monthDiff = today.getMonth() - birth.getMonth();
+
+      if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birth.getDate())
+      ) {
+        age--;
+      }
+      return age;
+    } catch {
+      return 0;
+    }
+  };
 
   const handlePrint = () => window.print();
 
   const handleDownloadPdf = async () => {
+    if (!visit) return;
+
     setIsDownloading(true);
 
     try {
       if (!(window as any).PDFLib) {
         const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
+        script.src =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
         await new Promise((resolve, reject) => {
           script.onload = resolve;
           script.onerror = reject;
           document.head.appendChild(script);
         });
       }
+
       const { PDFDocument, StandardFonts, rgb } = (window as any).PDFLib;
 
       const PAGE_WIDTH = 595;
@@ -185,10 +362,17 @@ export default function RekamMedisDetailPage() {
         ({ width, height } = page.getSize());
         cursorY = height - MARGIN;
       };
+
       const ensureSpace = (needed: number) => {
         if (cursorY - needed < FOOTER_HEIGHT) newPage();
       };
-      const splitTextToLines = (text: any, usedFont: any, size: number, maxW: number) => {
+
+      const splitTextToLines = (
+        text: any,
+        usedFont: any,
+        size: number,
+        maxW: number
+      ) => {
         if (!text || String(text).trim() === "") return ["-"];
         const words = String(text).split(/\s+/);
         const lines: string[] = [];
@@ -204,32 +388,19 @@ export default function RekamMedisDetailPage() {
         return lines.length ? lines : ["-"];
       };
 
-      // logo
-      let logoImage: any = null;
-      let logoW = 0, logoH = 0;
-      try {
-        const logoUrl = data?.clinicLogoUrl;
-        if (logoUrl) {
-          const res = await fetch(logoUrl);
-          if (res.ok) {
-            const arr = new Uint8Array(await res.arrayBuffer());
-            try { logoImage = await pdfDoc.embedPng(arr); } catch { logoImage = await pdfDoc.embedJpg(arr); }
-            const maxLogoW = 70;
-            const scale = Math.min(1, maxLogoW / logoImage.width);
-            logoW = logoImage.width * scale;
-            logoH = logoImage.height * scale;
-          }
-        }
-      } catch (e) { console.warn("Logo load failed", e); }
-
       const drawHeader = (title: string) => {
-        const headerHeight = Math.max(logoH, FONT_SIZE_HEADER) + 8;
+        const headerHeight = FONT_SIZE_HEADER + 8;
         ensureSpace(headerHeight + 8);
         const titleWidth = fontBold.widthOfTextAtSize(title, FONT_SIZE_HEADER);
         const titleX = MARGIN + Math.max(0, (CONTENT_WIDTH - titleWidth) / 2);
         const titleY = cursorY;
-        if (logoImage) page.drawImage(logoImage, { x: MARGIN, y: cursorY - logoH + 6, width: logoW, height: logoH });
-        page.drawText(title, { x: titleX, y: titleY, size: FONT_SIZE_HEADER, font: fontBold, color: COLOR_PRIMARY });
+        page.drawText(title, {
+          x: titleX,
+          y: titleY,
+          size: FONT_SIZE_HEADER,
+          font: fontBold,
+          color: COLOR_PRIMARY,
+        });
         cursorY -= headerHeight;
       };
 
@@ -262,60 +433,123 @@ export default function RekamMedisDetailPage() {
 
       const drawTable = (rows: string[][], colWidths: number[]) => {
         for (const row of rows) while (row.length < colWidths.length) row.push("");
+
         for (const row of rows) {
           const cellsLines = row.map((cell, idx) =>
-            splitTextToLines(cell, idx % 2 === 0 ? fontBold : font, FONT_SIZE_NORMAL, Math.max(10, colWidths[idx] - CELL_PADDING * 2))
+            splitTextToLines(
+              cell,
+              idx % 2 === 0 ? fontBold : font,
+              FONT_SIZE_NORMAL,
+              Math.max(10, colWidths[idx] - CELL_PADDING * 2)
+            )
           );
           const maxLines = Math.max(...cellsLines.map((cl) => cl.length));
           const rowHeight = maxLines * LINE_HEIGHT + CELL_PADDING * 2;
           ensureSpace(rowHeight + 8);
           const rowTop = cursorY;
 
-          page.drawLine({ start: { x: MARGIN, y: rowTop }, end: { x: MARGIN + colWidths.reduce((a, b) => a + b, 0), y: rowTop }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+          page.drawLine({
+            start: { x: MARGIN, y: rowTop },
+            end: {
+              x: MARGIN + colWidths.reduce((a, b) => a + b, 0),
+              y: rowTop,
+            },
+            thickness: 0.5,
+            color: rgb(0.85, 0.85, 0.85),
+          });
 
           let x = MARGIN;
           for (let ci = 0; ci < colWidths.length; ci++) {
             const cw = colWidths[ci];
-            page.drawLine({ start: { x, y: rowTop }, end: { x, y: rowTop - rowHeight }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+            page.drawLine({
+              start: { x, y: rowTop },
+              end: { x, y: rowTop - rowHeight },
+              thickness: 0.5,
+              color: rgb(0.85, 0.85, 0.85),
+            });
+
             let textY = rowTop - CELL_PADDING - FONT_SIZE_NORMAL;
             for (const ln of cellsLines[ci]) {
-              page.drawText(ln, { x: x + CELL_PADDING, y: textY, size: FONT_SIZE_NORMAL, font: ci % 2 === 0 ? fontBold : font });
+              page.drawText(ln, {
+                x: x + CELL_PADDING,
+                y: textY,
+                size: FONT_SIZE_NORMAL,
+                font: ci % 2 === 0 ? fontBold : font,
+              });
               textY -= LINE_HEIGHT;
             }
             x += cw;
           }
 
           const totalW = colWidths.reduce((a, b) => a + b, 0);
-          page.drawLine({ start: { x: MARGIN + totalW, y: rowTop }, end: { x: MARGIN + totalW, y: rowTop - rowHeight }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
-          page.drawLine({ start: { x: MARGIN, y: rowTop - rowHeight }, end: { x: MARGIN + totalW, y: rowTop - rowHeight }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+          page.drawLine({
+            start: { x: MARGIN + totalW, y: rowTop },
+            end: { x: MARGIN + totalW, y: rowTop - rowHeight },
+            thickness: 0.5,
+            color: rgb(0.85, 0.85, 0.85),
+          });
+          page.drawLine({
+            start: { x: MARGIN, y: rowTop - rowHeight },
+            end: { x: MARGIN + totalW, y: rowTop - rowHeight },
+            thickness: 0.5,
+            color: rgb(0.85, 0.85, 0.85),
+          });
+
           cursorY -= rowHeight + 6;
         }
       };
 
-      // build pdf content using `data`
       drawHeader("REKAM MEDIS PASIEN");
-      drawMeta(`Tanggal Cetak: ${new Date().toLocaleDateString()}`);
+      drawMeta(`Tanggal Cetak: ${new Date().toLocaleDateString("id-ID")}`);
 
       drawSectionTitle("Informasi Pasien");
       const patientRows = [
-        ["No. Rekam Medis", data?.rmNo ?? "-", "No. ID", data?.noId ?? "-"],
-        ["Nama Lengkap", data?.name ?? "-", "Umur", data?.age ? `${data.age} tahun` : "-"],
-        ["Jenis Kelamin", data?.gender ?? "-", "Tanggal Lahir", data?.birthDate ?? "-"],
-        ["Alamat", data?.address ?? "-", "No. Telepon", data?.phone ?? "-"],
-        ["Catatan", data?.catatan ?? "-", "", ""],
+        [
+          "No. Rekam Medis",
+          (visit as any).patient?.medicalRecordNumber || "-",
+          "No. ID",
+          (visit as any).patient?.patientNumber || "-",
+        ],
+        [
+          "Nama Lengkap",
+          (visit as any).patient?.fullName || "-",
+          "Umur",
+          `${calculateAge((visit as any).patient?.dateOfBirth)} tahun`,
+        ],
+        [
+          "Jenis Kelamin",
+          (visit as any).patient?.gender === "L" ? "Laki-laki" : "Perempuan",
+          "Tanggal Lahir",
+          formatDate((visit as any).patient?.dateOfBirth),
+        ],
+        [
+          "Alamat",
+          (visit as any).patient?.address || "-",
+          "No. Telepon",
+          (visit as any).patient?.phone || "-",
+        ],
+        ["Catatan", (visit as any).patient?.allergies || "-", "", ""],
       ];
+
       const labelW = 90;
       const flexible = CONTENT_WIDTH - labelW * 2;
-      const patientColWidths = [labelW, Math.floor(flexible * 0.45) + labelW, labelW, CONTENT_WIDTH - (labelW + (Math.floor(flexible * 0.45) + labelW) + labelW)];
+      const patientColWidths = [
+        labelW,
+        Math.floor(flexible * 0.45) + labelW,
+        labelW,
+        CONTENT_WIDTH -
+          (labelW + (Math.floor(flexible * 0.45) + labelW) + labelW),
+      ];
       drawTable(patientRows, patientColWidths);
 
       drawSectionTitle("Informasi Kunjungan Terkini");
+      const firstTreatment: any = (visit as any).treatments?.[0];
       drawTable(
         [
-          ["Tanggal Kunjungan", data?.visit?.date ?? "-"],
-          ["Dokter Pemeriksa", data?.visit?.doctor ?? "-"],
-          ["Tindakan", data?.visit?.action ?? "-"],
-          ["Diagnosis", data?.visit?.diagnosis ?? "-"],
+          ["Tanggal Kunjungan", formatDate((visit as any).visitDate)],
+          ["Dokter Pemeriksa", firstTreatment?.performer?.fullName || "-"],
+          ["Tindakan", firstTreatment?.service?.serviceName || "-"],
+          ["Diagnosis", firstTreatment?.diagnosis || "-"],
         ],
         [130, CONTENT_WIDTH - 130]
       );
@@ -323,45 +557,58 @@ export default function RekamMedisDetailPage() {
       drawSectionTitle("Detail Pemeriksaan");
       drawTable(
         [
-          ["Keluhan Utama", data?.examination?.chiefComplaint ?? "-"],
-          ["Hasil Pemeriksaan Fisik", data?.examination?.physical ?? "-"],
-          ["Rencana Perawatan", data?.examination?.treatmentPlan ?? "-"],
+          ["Keluhan Utama", (visit as any).chiefComplaint || "-"],
+          ["Hasil Pemeriksaan Fisik", (visit as any).bloodPressure || "-"],
+          ["Rencana Perawatan", (visit as any).notes || "-"],
         ],
         [160, CONTENT_WIDTH - 160]
       );
 
-      if (data?.examination?.note) {
-        cursorY -= 4;
-        ensureSpace(40);
-        page.drawRectangle({ x: MARGIN, y: cursorY + 12, width: 6, height: 6, color: rgb(1, 0.85, 0.15) });
-        let ty = cursorY + 10;
-        for (const ln of splitTextToLines(`Catatan: ${data.examination.note}`, font, FONT_SIZE_NORMAL, CONTENT_WIDTH - 20)) {
-          page.drawText(ln, { x: MARGIN + 12, y: ty, size: FONT_SIZE_NORMAL, font });
-          ty -= LINE_HEIGHT;
-        }
-        cursorY = ty - 8;
-      }
-
       drawSectionTitle("Obat yang Diberikan");
-      const pdfMeds = data?.medications ?? [];
+      const pdfMeds: any[] = (visit as any).treatments || [];
       if (!Array.isArray(pdfMeds) || pdfMeds.length === 0) {
-        drawTable([["Obat", "Tidak ada obat yang diresepkan."]], [90, CONTENT_WIDTH - 90]);
+        drawTable([["Obat", "Tidak ada obat yang diresepkan."]], [
+          90,
+          CONTENT_WIDTH - 90,
+        ]);
       } else {
         const medRows = pdfMeds.map((m: any, i: number) => [
           (i + 1).toString(),
-          `${m.name}${m.dosage ? " | Dosis: " + m.dosage : ""}${m.duration ? " | Durasi: " + m.duration : ""}${m.instructions ? " | Petunjuk: " + m.instructions : ""}`,
+          `${m.service?.serviceName || "-"}${
+            m.quantity ? " | Qty: " + m.quantity : ""
+          }${m.treatmentNotes ? " | " + m.treatmentNotes : ""}`,
         ]);
+
         drawTable([["No", "Rincian Obat"]], [40, CONTENT_WIDTH - 40]);
         drawTable(medRows, [40, CONTENT_WIDTH - 40]);
       }
 
       (pdfDoc.getPages() as any[]).forEach((p: any, idx: number) => {
         const { width: pw } = p.getSize();
-        p.drawLine({ start: { x: MARGIN, y: FOOTER_HEIGHT - 20 }, end: { x: pw - MARGIN, y: FOOTER_HEIGHT - 20 }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
-        p.drawText(`© ${new Date().getFullYear()} RoxyDental`, { x: MARGIN, y: FOOTER_HEIGHT - 34, size: 9, font, color: rgb(0.45, 0.45, 0.45) });
+        p.drawLine({
+          start: { x: MARGIN, y: FOOTER_HEIGHT - 20 },
+          end: { x: pw - MARGIN, y: FOOTER_HEIGHT - 20 },
+          thickness: 0.5,
+          color: rgb(0.85, 0.85, 0.85),
+        });
+
+        p.drawText(`© ${new Date().getFullYear()} RoxyDental`, {
+          x: MARGIN,
+          y: FOOTER_HEIGHT - 34,
+          size: 9,
+          font,
+          color: rgb(0.45, 0.45, 0.45),
+        });
+
         const pageLabel = `Halaman ${idx + 1} / ${pdfDoc.getPages().length}`;
         const px = font.widthOfTextAtSize(pageLabel, 9);
-        p.drawText(pageLabel, { x: pw - MARGIN - px, y: FOOTER_HEIGHT - 34, size: 9, font, color: rgb(0.45, 0.45, 0.45) });
+        p.drawText(pageLabel, {
+          x: pw - MARGIN - px,
+          y: FOOTER_HEIGHT - 34,
+          size: 9,
+          font,
+          color: rgb(0.45, 0.45, 0.45),
+        });
       });
 
       const pdfBytes = await pdfDoc.save();
@@ -369,23 +616,42 @@ export default function RekamMedisDetailPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${data?.rmNo ?? "rekam_medis"}.pdf`;
+      a.download = `${
+        (visit as any).patient?.medicalRecordNumber || "rekam_medis"
+      }.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
-      alert("Gagal mengunduh PDF. Cek console untuk detail.");
+      toast({
+        title: "Error",
+        description: "Gagal mengunduh PDF",
+        variant: "destructive",
+      });
     } finally {
       setIsDownloading(false);
     }
   };
 
-  if (!data) {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#FFF5F7]">
+        <DoctorNavbar />
+        <div className="flex justify-center items-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-pink-600" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!visit) {
     return (
       <div className="min-h-screen bg-background p-6">
         <div className="max-w-4xl mx-auto text-center py-20">
-          <p className="text-pink-700 font-semibold text-lg">No RM tidak ditemukan</p>
-          <Button className="mt-4" onClick={() => window.history.back()}>
+          <p className="text-pink-700 font-semibold text-lg">
+            Rekam medis tidak ditemukan
+          </p>
+          <Button className="mt-4" onClick={() => router.back()}>
             Kembali ke daftar
           </Button>
         </div>
@@ -393,22 +659,21 @@ export default function RekamMedisDetailPage() {
     );
   }
 
-  const meds = data.medications ?? [];
+  const meds: any[] = (visit as any).treatments || [];
 
   return (
     <div className="min-h-screen bg-[#FFF5F7]">
       <DoctorNavbar />
 
       <div id="rekam-medis-root" className="max-w-7xl mx-auto p-4 md:p-6">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <a
-            href="/dashboard/dokter/pasien/rekam-medis"
-            className="inline-flex items-center gap-2 bg-white/60 border border-pink-200 text-pink-700 px-3 py-2 rounded shadow-sm text-sm cursor-pointer hover:bg-white"
+          <Button
+            onClick={() => router.push("/dashboard/dokter/pasien/rekam-medis")}
+            className="inline-flex items-center gap-2 bg-white/60 border border-pink-200 text-pink-700 px-3 py-2 rounded shadow-sm text-sm hover:bg-white"
           >
             <ArrowLeft className="w-4 h-4" />
             Kembali ke Daftar
-          </a>
+          </Button>
 
           <div className="flex items-center gap-3">
             <Button
@@ -438,65 +703,87 @@ export default function RekamMedisDetailPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
-          {/* Left column */}
+          {/* LEFT: PATIENT INFO */}
           <div>
             <Card className="shadow-lg">
               <CardHeader className="bg-pink-600 text-white rounded-t-md">
-                <CardTitle className="text-lg font-semibold">Informasi Pasien</CardTitle>
+                <CardTitle className="text-lg font-semibold">
+                  Informasi Pasien
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 bg-white text-sm pt-4">
                 <div>
                   <p className="text-xs text-gray-400">NO. REKAM MEDIS</p>
-                  <p className="font-semibold text-pink-700 mt-1">{data.rmNo}</p>
+                  <p className="font-semibold text-pink-700 mt-1">
+                    {(visit as any).patient?.medicalRecordNumber || "-"}
+                  </p>
                 </div>
 
                 <div>
                   <p className="text-xs text-gray-400">NO. ID</p>
-                  <p className="font-medium mt-1">{data.noId}</p>
+                  <p className="font-medium mt-1">
+                    {(visit as any).patient?.patientNumber || "-"}
+                  </p>
                 </div>
 
                 <div>
                   <p className="text-xs text-gray-400">NAMA LENGKAP</p>
-                  <p className="font-medium mt-1">{data.name}</p>
+                  <p className="font-medium mt-1">
+                    {(visit as any).patient?.fullName || "-"}
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-gray-400">UMUR</p>
-                    <p className="font-medium mt-1">{data.age ?? "-"} tahun</p>
+                    <p className="font-medium mt-1">
+                      {calculateAge((visit as any).patient?.dateOfBirth)} tahun
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-400">JENIS KELAMIN</p>
-                    <p className="font-medium mt-1">{data.gender ?? "-"}</p>
+                    <p className="font-medium mt-1">
+                      {(visit as any).patient?.gender === "L"
+                        ? "Laki-laki"
+                        : "Perempuan"}
+                    </p>
                   </div>
                 </div>
 
                 <div>
                   <p className="text-xs text-gray-400">TANGGAL LAHIR</p>
-                  <p className="font-medium mt-1">{data.birthDate ?? "-"}</p>
+                  <p className="font-medium mt-1">
+                    {formatDate((visit as any).patient?.dateOfBirth)}
+                  </p>
                 </div>
 
                 <div>
                   <p className="text-xs text-gray-400">ALAMAT</p>
-                  <p className="font-medium mt-1">{data.address ?? "-"}</p>
+                  <p className="font-medium mt-1">
+                    {(visit as any).patient?.address || "-"}
+                  </p>
                 </div>
 
                 <div>
                   <p className="text-xs text-gray-400">NO. TELEPON</p>
-                  <p className="font-medium mt-1">{data.phone ?? "-"}</p>
+                  <p className="font-medium mt-1">
+                    {(visit as any).patient?.phone || "-"}
+                  </p>
                 </div>
 
                 <div>
                   <p className="text-xs text-gray-400">CATATAN</p>
-                  <p className="text-pink-700 font-medium mt-1">{data.catatan?? "-"}</p>
+                  <p className="text-pink-700 font-medium mt-1">
+                    {(visit as any).patient?.allergies || "-"}
+                  </p>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Right column */}
+          {/* RIGHT: VISIT + EXAM + MEDS */}
           <div className="lg:col-span-2 space-y-6 font-sans">
-            {/* Kunjungan */}
+            {/* INFORMASI KUNJUNGAN */}
             <Card className="shadow-lg">
               <CardHeader className="bg-yellow-400/40 rounded-t-md py-5">
                 <div className="flex items-center justify-between w-full">
@@ -504,18 +791,13 @@ export default function RekamMedisDetailPage() {
                     Informasi Kunjungan Terkini
                   </CardTitle>
 
-                  {!editVisit ? (
+                  {!editDiagnosis ? (
                     <Button
                       size="sm"
                       className="h-8"
                       onClick={() => {
-                        setVisitDraft({
-                          date: data.visit?.date ?? "",
-                          doctor: data.visit?.doctor ?? "",
-                          action: data.visit?.action ?? "",
-                          diagnosis: data.visit?.diagnosis ?? "",
-                        });
-                        setEditVisit(true);
+                        setDiagnosisDraft((visit as any).treatments?.[0]?.diagnosis || "");
+                        setEditDiagnosis(true);
                       }}
                     >
                       <Pencil className="w-4 h-4 mr-1" /> Edit
@@ -525,26 +807,24 @@ export default function RekamMedisDetailPage() {
                       <Button
                         size="sm"
                         className="h-8"
-                        onClick={() => {
-                          setData((prev) => (prev ? { ...prev, visit: { ...visitDraft } } : prev));
-                          setEditVisit(false);
-                        }}
+                        onClick={handleSaveDiagnosis}
+                        disabled={saving}
                       >
-                        Simpan
+                        {saving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          "Simpan"
+                        )}
                       </Button>
                       <Button
                         size="sm"
                         className="h-8"
                         variant="outline"
                         onClick={() => {
-                          setVisitDraft({
-                            date: data.visit?.date ?? "",
-                            doctor: data.visit?.doctor ?? "",
-                            action: data.visit?.action ?? "",
-                            diagnosis: data.visit?.diagnosis ?? "",
-                          });
-                          setEditVisit(false);
+                          setDiagnosisDraft((visit as any).treatments?.[0]?.diagnosis || "");
+                          setEditDiagnosis(false);
                         }}
+                        disabled={saving}
                       >
                         Batal
                       </Button>
@@ -556,45 +836,47 @@ export default function RekamMedisDetailPage() {
               <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start bg-white text-sm pt-4">
                 <div>
                   <p className="text-xs text-gray-400">TANGGAL KUNJUNGAN</p>
-                  {editVisit ? (
-                    <input className="border rounded px-2 py-1 w-full" value={visitDraft.date} onChange={(e) => setVisitDraft({ ...visitDraft, date: e.target.value })} />
-                  ) : (
-                    <p className="font-medium mt-1">{data.visit?.date ?? "-"}</p>
-                  )}
+                  <p className="font-medium mt-1">
+                    {formatDate((visit as any).visitDate)}
+                  </p>
                 </div>
 
                 <div>
                   <p className="text-xs text-gray-400">DOKTER PEMERIKSA</p>
-                  {editVisit ? (
-                    <input className="border rounded px-2 py-1 w-full" value={visitDraft.doctor} onChange={(e) => setVisitDraft({ ...visitDraft, doctor: e.target.value })} />
-                  ) : (
-                    <p className="font-medium mt-1">{data.visit?.doctor ?? "-"}</p>
-                  )}
+                  <p className="font-medium mt-1">
+                    {(visit as any).treatments?.[0]?.performer?.fullName || "-"}
+                  </p>
                 </div>
 
                 <div>
                   <p className="text-xs text-gray-400">TINDAKAN</p>
-                  {editVisit ? (
-                    <input className="border rounded px-2 py-1 w-full" value={visitDraft.action} onChange={(e) => setVisitDraft({ ...visitDraft, action: e.target.value })} />
-                  ) : (
-                    <p className="font-medium mt-1">{data.visit?.action ?? "-"}</p>
-                  )}
+                  <p className="font-medium mt-1">
+                    {(visit as any).treatments?.[0]?.service?.serviceName || "-"}
+                  </p>
                 </div>
 
                 <div className="md:col-span-3 mt-2">
                   <p className="text-xs text-gray-400">DIAGNOSIS</p>
-                  {editVisit ? (
-                    <textarea rows={3} className="w-full border rounded px-2 py-1" value={visitDraft.diagnosis} onChange={(e) => setVisitDraft({ ...visitDraft, diagnosis: e.target.value })} />
+                  {editDiagnosis ? (
+                    <textarea
+                      rows={3}
+                      className="w-full mt-2 border rounded p-3"
+                      value={diagnosisDraft}
+                      onChange={(e) => setDiagnosisDraft(e.target.value)}
+                      placeholder="Masukkan diagnosis..."
+                    />
                   ) : (
                     <div className="mt-2 rounded-md bg-pink-50 p-3">
-                      <p className="text-pink-700 font-semibold">{data.visit?.diagnosis ?? "-"}</p>
+                      <p className="text-pink-700 font-semibold">
+                        {(visit as any).treatments?.[0]?.diagnosis || "-"}
+                      </p>
                     </div>
                   )}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Pemeriksaan */}
+            {/* DETAIL PEMERIKSAAN */}
             <Card className="shadow-lg">
               <CardHeader className="bg-pink-600 text-white rounded-t-md">
                 <div className="flex w-full items-center justify-between">
@@ -607,9 +889,9 @@ export default function RekamMedisDetailPage() {
                       size="sm"
                       onClick={() => {
                         setExamDraft({
-                          chiefComplaint: data.examination?.chiefComplaint ?? "",
-                          physical: data.examination?.physical ?? "",
-                          treatmentPlan: data.examination?.treatmentPlan ?? "",
+                          chiefComplaint: (visit as any).chiefComplaint || "",
+                          physical: (visit as any).bloodPressure || "",
+                          treatmentPlan: (visit as any).notes || "",
                         });
                         setEditExam(true);
                       }}
@@ -620,24 +902,20 @@ export default function RekamMedisDetailPage() {
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
-                        onClick={() => {
-                          setData((prev) => (prev ? { ...prev, examination: { ...examDraft } } : prev));
-                          setEditExam(false);
-                        }}
+                        onClick={handleSaveExam}
+                        disabled={saving}
                       >
-                        Simpan
+                        {saving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          "Simpan"
+                        )}
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => {
-                          setExamDraft({
-                            chiefComplaint: data.examination?.chiefComplaint ?? "",
-                            physical: data.examination?.physical ?? "",
-                            treatmentPlan: data.examination?.treatmentPlan ?? "",
-                          });
-                          setEditExam(false);
-                        }}
+                        onClick={() => setEditExam(false)}
+                        disabled={saving}
                       >
                         Batal
                       </Button>
@@ -650,101 +928,148 @@ export default function RekamMedisDetailPage() {
                 <div>
                   <p className="text-xs text-gray-400">KELUHAN UTAMA</p>
                   {editExam ? (
-                    <textarea rows={3} className="w-full border rounded px-2 py-1" value={examDraft.chiefComplaint} onChange={(e) => setExamDraft({ ...examDraft, chiefComplaint: e.target.value })} />
+                    <textarea
+                      rows={3}
+                      className="w-full border rounded px-2 py-1 mt-1"
+                      value={examDraft.chiefComplaint}
+                      onChange={(e) =>
+                        setExamDraft({
+                          ...examDraft,
+                          chiefComplaint: e.target.value,
+                        })
+                      }
+                    />
                   ) : (
-                    <p className="font-medium mt-1">{data.examination?.chiefComplaint ?? "-"}</p>
+                    <p className="font-medium mt-1">
+                      {(visit as any).chiefComplaint || "-"}
+                    </p>
                   )}
                 </div>
 
                 <div>
                   <p className="text-xs text-gray-400">HASIL PEMERIKSAAN FISIK</p>
                   {editExam ? (
-                    <textarea rows={3} className="w-full border rounded px-2 py-1" value={examDraft.physical} onChange={(e) => setExamDraft({ ...examDraft, physical: e.target.value })} />
+                    <textarea
+                      rows={3}
+                      className="w-full border rounded px-2 py-1 mt-1"
+                      value={examDraft.physical}
+                      onChange={(e) =>
+                        setExamDraft({ ...examDraft, physical: e.target.value })
+                      }
+                    />
                   ) : (
-                    <p className="font-medium mt-1">{data.examination?.physical ?? "-"}</p>
+                    <p className="font-medium mt-1">
+                      {(visit as any).bloodPressure || "-"}
+                    </p>
                   )}
                 </div>
 
                 <div>
                   <p className="text-xs text-gray-400">RENCANA PERAWATAN</p>
                   {editExam ? (
-                    <textarea rows={3} className="w-full border rounded px-2 py-1" value={examDraft.treatmentPlan} onChange={(e) => setExamDraft({ ...examDraft, treatmentPlan: e.target.value })} />
+                    <textarea
+                      rows={3}
+                      className="w-full border rounded px-2 py-1 mt-1"
+                      value={examDraft.treatmentPlan}
+                      onChange={(e) =>
+                        setExamDraft({
+                          ...examDraft,
+                          treatmentPlan: e.target.value,
+                        })
+                      }
+                    />
                   ) : (
-                    <p className="font-medium mt-1">{data.examination?.treatmentPlan ?? "-"}</p>
+                    <p className="font-medium mt-1">
+                      {(visit as any).notes || "-"}
+                    </p>
                   )}
                 </div>
 
-               <div className="bg-yellow-50 border-l-4 border-yellow-300 p-3 rounded mt-2">
-  <div className="flex items-center justify-between mb-1">
-    <p className="text-sm font-medium">Catatan:</p>
+                <div className="bg-yellow-50 border-l-4 border-yellow-300 p-3 rounded mt-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium">Catatan:</p>
 
-    {!editNotes ? (
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-7 px-2 text-xs"
-        onClick={() => {
-          setNotesDraft(data?.notes ?? "");
-          setEditNotes(true);
-        }}
-      >
-        <Pencil className="w-3 h-3 mr-1" /> Edit
-      </Button>
-    ) : (
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          className="h-7 px-2 text-xs"
-          onClick={() => {
-            setData({ ...data, notes: notesDraft });
-            setEditNotes(false);
-          }}
-        >
-          Simpan
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 px-2 text-xs"
-          onClick={() => {
-            setNotesDraft(data?.notes ?? "");
-            setEditNotes(false);
-          }}
-        >
-          Batal
-        </Button>
-      </div>
-    )}
-  </div>
+                    {!editNotes ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => {
+                          setNotesDraft((visit as any).notes || "");
+                          setEditNotes(true);
+                        }}
+                      >
+                        <Pencil className="w-3 h-3 mr-1" /> Edit
+                      </Button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={handleSaveNotes}
+                          disabled={saving}
+                        >
+                          {saving ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            "Simpan"
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => {
+                            setNotesDraft((visit as any).notes || "");
+                            setEditNotes(false);
+                          }}
+                          disabled={saving}
+                        >
+                          Batal
+                        </Button>
+                      </div>
+                    )}
+                  </div>
 
-  {editNotes ? (
-    <textarea
-      rows={3}
-      className="w-full border rounded px-2 py-1 text-sm"
-      value={notesDraft}
-      onChange={(e) => setNotesDraft(e.target.value)}
-    />
-  ) : (
-    <p className="text-sm mt-1 text-gray-700">
-      {data?.notes || "-"}
-    </p>
-  )}
-</div>
-
+                  {editNotes ? (
+                    <textarea
+                      rows={3}
+                      className="w-full border rounded px-2 py-1 text-sm"
+                      value={notesDraft}
+                      onChange={(e) => setNotesDraft(e.target.value)}
+                    />
+                  ) : (
+                    <p className="text-sm mt-1 text-gray-700">
+                      {(visit as any).notes || "-"}
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
-            {/* Obat */}
+            {/* OBAT */}
             <Card className="shadow-lg">
               <CardHeader className="bg-yellow-400/40 rounded-t-md">
                 <div className="flex w-full items-center justify-between">
-                  <CardTitle className="text-lg font-semibold">Obat yang Diberikan</CardTitle>
+                  <CardTitle className="text-lg font-semibold">
+                    Obat yang Diberikan
+                  </CardTitle>
 
                   {!editMeds ? (
                     <Button
                       size="sm"
                       onClick={() => {
-                        setMedsDraft(data?.medications ? JSON.parse(JSON.stringify(data.medications)) : []);
+                        const extractedMeds =
+                          (visit as any).treatments?.map((t: any) => ({
+                            id: t.id,
+                            name: t.service?.serviceName || "",
+                            dosage: `${t.quantity ?? 1}`,
+                            duration: "Sesuai kebutuhan",
+                            instructions: t.treatmentNotes || "",
+                            serviceId: t.service?.id || "",
+                          })) || [];
+                        setMedsDraft(extractedMeds);
+                        setDeletedMedIds([]);
                         setEditMeds(true);
                       }}
                     >
@@ -754,21 +1079,33 @@ export default function RekamMedisDetailPage() {
                     <div className="flex gap-2">
                       <Button
                         size="sm"
-                        onClick={() => {
-                          // simpan: update data.medications
-                          setData((prev) => (prev ? { ...prev, medications: medsDraft } : prev));
-                          setEditMeds(false);
-                        }}
+                        onClick={handleSaveMeds}
+                        disabled={saving}
                       >
-                        Simpan
+                        {saving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          "Simpan"
+                        )}
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          setMedsDraft(data?.medications ? JSON.parse(JSON.stringify(data.medications)) : []);
+                          const extractedMeds =
+                            (visit as any).treatments?.map((t: any) => ({
+                              id: t.id,
+                              name: t.service?.serviceName || "",
+                              dosage: `${t.quantity ?? 1}`,
+                              duration: "Sesuai kebutuhan",
+                              instructions: t.treatmentNotes || "",
+                              serviceId: t.service?.id || "",
+                            })) || [];
+                          setMedsDraft(extractedMeds);
+                          setDeletedMedIds([]);
                           setEditMeds(false);
                         }}
+                        disabled={saving}
                       >
                         Batal
                       </Button>
@@ -779,63 +1116,107 @@ export default function RekamMedisDetailPage() {
 
               <CardContent className="space-y-3 bg-white text-sm pt-4">
                 {(editMeds ? medsDraft : meds).length === 0 ? (
-                  <p className="text-gray-600">Tidak ada obat yang diresepkan pada kunjungan ini.</p>
+                  <p className="text-gray-600">
+                    Tidak ada obat yang diresepkan pada kunjungan ini.
+                  </p>
                 ) : (
-                  (editMeds ? medsDraft : meds).map((m, idx) => (
-                    <div key={m.id ?? idx} className="rounded-md bg-pink-50 p-4 border border-pink-100 space-y-2">
+                  (editMeds ? medsDraft : meds).map((m: any, idx: number) => (
+                    <div
+                      key={m.id ?? idx}
+                      className="rounded-md bg-pink-50 p-4 border border-pink-100 space-y-2"
+                    >
                       {!editMeds ? (
-                        <>
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-semibold text-pink-700">{m.name}</p>
-                              {m.instructions && <p className="text-gray-700 text-sm mt-1">{m.instructions}</p>}
-                            </div>
-                            <Badge variant="secondary">Dosis: {m.dosage}</Badge>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-semibold text-pink-700">
+                              {m.service?.serviceName || m.name}
+                            </p>
+                            {(m.treatmentNotes || m.instructions) && (
+                              <p className="text-gray-700 text-sm mt-1">
+                                {m.treatmentNotes || m.instructions}
+                              </p>
+                            )}
                           </div>
-                          <p className="text-xs text-gray-600">Durasi: {m.duration}</p>
-                        </>
+                          <Badge variant="secondary">
+                            Qty: {m.quantity || m.dosage}
+                          </Badge>
+                        </div>
                       ) : (
-                        <>
-                          <input className="w-full border rounded p-2" placeholder="Nama Obat" value={m.name} onChange={(e) => {
-                            const copy = [...medsDraft];
-                            copy[idx] = { ...copy[idx], name: e.target.value };
-                            setMedsDraft(copy);
-                          }} />
+                        <div className="flex items-start gap-2">
+                          <div className="flex-1 space-y-2">
+                            <input
+                              className="w-full border rounded p-2"
+                              placeholder="Nama Obat"
+                              value={m.name}
+                              onChange={(e) => {
+                                const copy = [...medsDraft];
+                                copy[idx] = { ...copy[idx], name: e.target.value };
+                                setMedsDraft(copy);
+                              }}
+                              disabled={!!m.id}
+                            />
 
-                          <input className="w-full border rounded p-2" placeholder="Dosis" value={m.dosage} onChange={(e) => {
-                            const copy = [...medsDraft];
-                            copy[idx] = { ...copy[idx], dosage: e.target.value };
-                            setMedsDraft(copy);
-                          }} />
+                            <input
+                              className="w-full border rounded p-2"
+                              placeholder="Quantity"
+                              type="number"
+                              min="1"
+                              value={m.dosage}
+                              onChange={(e) => {
+                                const copy = [...medsDraft];
+                                copy[idx] = { ...copy[idx], dosage: e.target.value };
+                                setMedsDraft(copy);
+                              }}
+                            />
 
-                          <input className="w-full border rounded p-2" placeholder="Durasi" value={m.duration} onChange={(e) => {
-                            const copy = [...medsDraft];
-                            copy[idx] = { ...copy[idx], duration: e.target.value };
-                            setMedsDraft(copy);
-                          }} />
+                            <textarea
+                              className="w-full border rounded p-2"
+                              placeholder="Instruksi"
+                              rows={2}
+                              value={m.instructions}
+                              onChange={(e) => {
+                                const copy = [...medsDraft];
+                                copy[idx] = {
+                                  ...copy[idx],
+                                  instructions: e.target.value,
+                                };
+                                setMedsDraft(copy);
+                              }}
+                            />
+                          </div>
 
-                          <textarea className="w-full border rounded p-2" placeholder="Instruksi" value={m.instructions} onChange={(e) => {
-                            const copy = [...medsDraft];
-                            copy[idx] = { ...copy[idx], instructions: e.target.value };
-                            setMedsDraft(copy);
-                          }} />
-                        </>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="mt-1"
+                            onClick={() => removeMedication(idx)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       )}
                     </div>
                   ))
                 )}
 
-                {!editMeds && data.notes && meds.length > 0 && (
-                  <div className="mt-2 p-3 bg-yellow-50 rounded border-l-4 border-yellow-300">
-                    <p className="text-sm text-gray-600">{data.notes}</p>
-                  </div>
+                {editMeds && (
+                  <Button
+                    variant="outline"
+                    className="w-full border-dashed border-2 border-pink-300 text-pink-600 hover:bg-pink-50"
+                    onClick={addNewMedication}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Tambah Obat
+                  </Button>
                 )}
               </CardContent>
             </Card>
           </div>
         </div>
 
-        <div className="mt-8 text-center text-xs text-gray-400">© 2025 RoxyDental.</div>
+        <div className="mt-8 text-center text-xs text-gray-400">
+          © 2025 RoxyDental.
+        </div>
       </div>
     </div>
   );

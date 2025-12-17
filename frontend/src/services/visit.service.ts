@@ -122,9 +122,9 @@ export const visitService = {
   },
 
   async getVisitById(id: string): Promise<Visit> {
-  const res = await apiClient.get(`/doctor/visits/${id}`);  // BENAR
-  return res.data.data || res.data;
-},
+    const res = await apiClient.get(`/doctor/visits/${id}`);
+    return res.data.data || res.data;
+  },
 
   async getVisitByNumber(visitNumber: string): Promise<Visit> {
     const res = await apiClient.get(`/doctor/visits/number/${visitNumber}`);
@@ -148,6 +148,23 @@ export const visitService = {
 
   async updateVisitStatus(id: string, status: VisitStatusType): Promise<Visit> {
     const res = await apiClient.patch(`/doctor/visits/${id}/status`, { status });
+    return res.data.data || res.data;
+  },
+
+  async updateVisit(id: string, data: Partial<VisitPayload>): Promise<Visit> {
+    const res = await apiClient.put(`/doctor/visits/${id}`, data);
+    return res.data.data || res.data;
+  },
+
+  async updateVisitExamination(
+    id: string,
+    data: {
+      chiefComplaint?: string;
+      bloodPressure?: string;
+      notes?: string;
+    }
+  ): Promise<Visit> {
+    const res = await apiClient.put(`/doctor/visits/${id}/examination`, data);
     return res.data.data || res.data;
   },
 };

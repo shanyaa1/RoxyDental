@@ -15,5 +15,7 @@ router.get('/medical-record/:medicalRecordNumber', authMiddleware, visitControll
 router.get('/:id', authMiddleware, visitController.getVisitById);
 router.post('/', authMiddleware, validate(createVisitSchema), visitController.createVisit);
 router.patch('/:id/status', authMiddleware, validate(updateVisitStatusSchema), visitController.updateVisitStatus);
+router.put('/:id', authMiddleware, visitController.updateVisit);
+router.put('/:id/examination', authMiddleware, visitController.updateVisitExamination);
 
 export default router;

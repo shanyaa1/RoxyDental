@@ -93,4 +93,33 @@ export class VisitController {
       next(error);
     }
   };
+
+  updateVisit = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      
+      const visit = await this.visitService.updateVisit(id, updateData);
+      res.json(successResponse("Kunjungan berhasil diupdate", visit));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateVisitExamination = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { chiefComplaint, bloodPressure, notes } = req.body;
+      
+      const visit = await this.visitService.updateVisitExamination(id, {
+        chiefComplaint,
+        bloodPressure,
+        notes
+      });
+      
+      res.json(successResponse("Detail pemeriksaan berhasil diupdate", visit));
+    } catch (error) {
+      next(error);
+    }
+  };
 }
