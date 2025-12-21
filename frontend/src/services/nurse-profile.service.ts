@@ -112,5 +112,10 @@ export const nurseProfileService = {
   async getLicenseInfo(): Promise<ApiResponse<LicenseInfo>> {
     const response = await apiClient.get('/nurse/profile/license');
     return response.data;
+  },
+
+  async deleteAccount(): Promise<ApiResponse<void>> {
+    const response = await apiClient.delete('/nurse/account');
+    return response.data;
   }
 };

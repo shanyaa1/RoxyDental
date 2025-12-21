@@ -399,4 +399,18 @@ export class NurseProfileService {
 
     return weekSchedule;
   }
+
+  async deleteAccount(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new AppError('User tidak ditemukan', 404);
+    }
+
+    await prisma.user.delete({
+      where: { id: userId }
+    });
+  }
 }

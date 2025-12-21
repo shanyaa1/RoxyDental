@@ -20,6 +20,7 @@ import { nurseProfileService, NurseProfile, UpdateProfileData } from "@/services
 function SettingsAccountPageContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [profile, setProfile] = useState<NurseProfile | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
   
@@ -106,9 +107,31 @@ function SettingsAccountPageContent() {
     }
   };
 
-  const handleDelete = () => {
-    setConfirmDeleteOpen(false);
-    setSuccessDeleteOpen(true);
+  const handleDelete = async () => {
+    try {
+      setDeleting(true);
+      setConfirmDeleteOpen(false);
+      
+      const response = await nurseProfileService.deleteAccount();
+      
+      if (response.success) {
+        setSuccessDeleteOpen(true);
+        
+        setTimeout(() => {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+          window.location.href = '/';
+        }, 2000);
+      } else {
+        alert('Gagal menghapus akun');
+        setDeleting(false);
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      alert('Terjadi kesalahan saat menghapus akun');
+      setDeleting(false);
+    }
   };
 
   if (loading) {
@@ -116,7 +139,10 @@ function SettingsAccountPageContent() {
       <div className="min-h-screen bg-[#FFF5F7]">
         <DoctorNavbar />
         <div className="flex items-center justify-center h-[calc(100vh-80px)]">
-          <Loader2 className="w-12 h-12 animate-spin text-pink-600" />
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 animate-spin text-pink-600 mx-auto" />
+            <p className="mt-4 text-pink-600">Memuat data...</p>
+          </div>
         </div>
       </div>
     );
@@ -302,8 +328,9 @@ function SettingsAccountPageContent() {
                     variant="outline"
                     className="border-pink-300 text-pink-700 hover:bg-pink-50 px-8"
                     onClick={() => setConfirmDeleteOpen(true)}
+                    disabled={deleting}
                   >
-                    Hapus Akun
+                    {deleting ? 'Menghapus...' : 'Hapus Akun'}
                   </Button>
                   <Button
                     className="bg-pink-600 hover:bg-pink-700 text-white px-8"
@@ -366,7 +393,7 @@ function SettingsAccountPageContent() {
 
       <Dialog open={successSaveOpen} onOpenChange={setSuccessSaveOpen}>
         <DialogContent className="max-w-md text-center p-6">
-          <h3 className="text-xl font-bold text-pink-700 mb-4">Perubahan berhasil disimpan</h3>
+          <h3 className="text-xl font-bold text-pink-700 mb-4">Perubahan berhasil disimpan!</h3>
           <Button 
             className="bg-pink-600 hover:bg-pink-700 text-white px-8" 
             onClick={() => setSuccessSaveOpen(false)}
@@ -379,37 +406,56 @@ function SettingsAccountPageContent() {
       <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-center text-pink-900">
-              Anda yakin ingin menghapus akun?
+            <DialogTitle className="text-center text-red-900 font-bold text-lg">
+              Hapus Akun Permanen?
             </DialogTitle>
           </DialogHeader>
-          <div className="flex gap-3 justify-center pt-4">
+          <div className="py-4">
+            <p className="text-center text-gray-700 mb-2">
+              Tindakan ini tidak dapat dibatalkan!
+            </p>
+            <p className="text-center text-sm text-gray-600">
+              Semua data akun Anda akan dihapus secara permanen dari sistem.
+            </p>
+          </div>
+          <div className="flex gap-3 justify-center pt-2">
             <Button 
               variant="outline" 
               onClick={() => setConfirmDeleteOpen(false)} 
-              className="px-8 border-pink-300 text-pink-700"
+              className="px-8 border-gray-300 text-gray-700"
+              disabled={deleting}
             >
               Batal
             </Button>
             <Button
               className="bg-red-600 hover:bg-red-700 text-white px-8"
               onClick={handleDelete}
+              disabled={deleting}
             >
-              Ya, Hapus
+              {deleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Menghapus...
+                </>
+              ) : (
+                'Ya, Hapus Akun'
+              )}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={successDeleteOpen} onOpenChange={setSuccessDeleteOpen}>
+      <Dialog open={successDeleteOpen} onOpenChange={() => {}}>
         <DialogContent className="max-w-md text-center p-6">
-          <h3 className="text-xl font-bold text-red-700 mb-4">Akun berhasil dihapus</h3>
-          <Button 
-            className="bg-red-600 hover:bg-red-700 text-white px-8" 
-            onClick={() => setSuccessDeleteOpen(false)}
-          >
-            Tutup
-          </Button>
+          <div className="mb-4">
+            <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          </div>
+          <h3 className="text-xl font-bold text-red-700 mb-2">Akun Berhasil Dihapus!</h3>
+          <p className="text-sm text-gray-600 mb-4">Anda akan dialihkan ke halaman utama...</p>
         </DialogContent>
       </Dialog>
     </div>

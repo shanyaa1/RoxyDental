@@ -59,4 +59,13 @@ export class NurseProfileController {
       next(error);
     }
   }
+
+  async deleteAccount(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      await nurseProfileService.deleteAccount(req.user!.id);
+      res.json(successResponse('Akun berhasil dihapus'));
+    } catch (error) {
+      next(error);
+    }
+  }
 }

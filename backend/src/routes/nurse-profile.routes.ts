@@ -52,4 +52,11 @@ router.get(
   nurseProfileController.getLicenseInfo.bind(nurseProfileController)
 );
 
+router.delete(
+  '/account',
+  authMiddleware,
+  roleMiddleware(UserRole.PERAWAT),
+  nurseProfileController.deleteAccount.bind(nurseProfileController)
+);
+
 export default router;
