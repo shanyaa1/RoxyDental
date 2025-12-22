@@ -1,49 +1,98 @@
-import api from '@/lib/api';
-import { LoginRequest, RegisterRequest, AuthResponse, User } from '@/types/auth';
+import apiClient from './api.client';
+
+export interface LoginData {
+  username: string;
+  password: string;
+  role: 'DOKTER' | 'PERAWAT';
+}
+
+export interface RegisterData {
+  username: string;
+  email: string;
+  password: string;
+  fullName: string;
+  phone: string;
+  specialization?: string;
+}
+
+export interface ChangePasswordData {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface AuthResponse {
+  success: boolean;
+  message: string;
+  data: {
+    user: {
+      id: string;
+      username: string;
+      email: string;
+      fullName: string;
+      role: string;
+      phone: string;
+      specialization?: string;
+      isActive: boolean;
+    };
+    token: string;
+  };
+}
+
+export interface ApiResponse {
+  success: boolean;
+  message: string;
+  data?: any;
+}
 
 export const authService = {
-  async login(credentials: LoginRequest): Promise<AuthResponse> {
-    const response = await api.post<AuthResponse>('/auth/login', credentials);
+  async login(data: LoginData): Promise<AuthResponse> {
+    const response = await apiClient.post('/auth/login', data);
     
-    if (response.data.success) {
+    if (response.data.success && response.data.data.token) {
       localStorage.setItem('token', response.data.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.data.user));
+      document.cookie = `token=${response.data.data.token}; path=/; max-age=604800`;
     }
     
     return response.data;
   },
 
-  async register(data: RegisterRequest): Promise<AuthResponse> {
-    const response = await api.post<AuthResponse>('/auth/register', data);
+  async register(data: RegisterData): Promise<AuthResponse> {
+    const response = await apiClient.post('/auth/register', data);
     
-    if (response.data.success) {
+    if (response.data.success && response.data.data.token) {
       localStorage.setItem('token', response.data.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.data.user));
+      document.cookie = `token=${response.data.data.token}; path=/; max-age=604800`;
     }
     
     return response.data;
   },
 
-  async getCurrentUser(): Promise<User> {
-    const response = await api.get<AuthResponse>('/auth/me');
-    return response.data.data.user;
+  async changePassword(data: ChangePasswordData): Promise<ApiResponse> {
+    try {
+      const response = await apiClient.put('/auth/change-password', data);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.data) {
+        throw error.response.data;
+      }
+      throw {
+        success: false,
+        message: 'Terjadi kesalahan pada server'
+      };
+    }
   },
 
   logout(): void {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    window.location.href = '/login';
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
   },
 
-  getStoredUser(): User | null {
+  getCurrentUser() {
     const userStr = localStorage.getItem('user');
-    if (!userStr) return null;
-    
-    try {
-      return JSON.parse(userStr);
-    } catch {
-      return null;
-    }
+    return userStr ? JSON.parse(userStr) : null;
   },
 
   getToken(): string | null {

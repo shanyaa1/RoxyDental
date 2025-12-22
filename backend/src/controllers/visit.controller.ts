@@ -1,59 +1,125 @@
-import { Response, NextFunction } from 'express';
-import { AuthRequest } from '../types/express.types';
-import { VisitService } from '../services/visit.service';
-import { successResponse } from '../utils/response.util';
-
-const visitService = new VisitService();
+import { Request, Response, NextFunction } from "express";
+import { VisitService } from "../services/visit.service";
+import { successResponse } from "../utils/response.util";
 
 export class VisitController {
-  async getVisits(req: AuthRequest, res: Response, next: NextFunction) {
+  private visitService: VisitService;
+
+  constructor() {
+    this.visitService = new VisitService();
+  }
+
+  getVisits = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { page, limit, status } = req.query;
-      const result = await visitService.getVisits(
-        Number(page) || 1,
-        Number(limit) || 10,
-        status as any
-      );
-      res.json(successResponse('Daftar kunjungan berhasil diambil', result));
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const status = req.query.status as any;
+      const search = req.query.search as string;
+
+      const result = await this.visitService.getVisits(page, limit, status, search);
+      res.json(successResponse("Daftar kunjungan berhasil diambil", result));
     } catch (error) {
       next(error);
     }
-  }
+  };
 
-  async getVisitById(req: AuthRequest, res: Response, next: NextFunction) {
+  getVisitById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const visit = await visitService.getVisitById(req.params.id);
-      res.json(successResponse('Detail kunjungan berhasil diambil', visit));
+      const visit = await this.visitService.getVisitById(req.params.id);
+      res.json(successResponse("Detail kunjungan berhasil diambil", visit));
     } catch (error) {
       next(error);
     }
-  }
+  };
 
-  async createVisit(req: AuthRequest, res: Response, next: NextFunction) {
+  getVisitByNumber = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const visit = await visitService.createVisit(req.body, req.user!.id);
-      res.status(201).json(successResponse('Kunjungan berhasil ditambahkan', visit));
+      const visit = await this.visitService.getVisitByNumber(req.params.visitNumber);
+      res.json(successResponse("Detail kunjungan berhasil diambil", visit));
     } catch (error) {
       next(error);
     }
-  }
+  };
 
-  async getQueue(req: AuthRequest, res: Response, next: NextFunction) {
+  getVisitByMedicalRecord = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const queue = await visitService.getQueue();
-      res.json(successResponse('Daftar antrian berhasil diambil', queue));
+      const visit = await this.visitService.getVisitByMedicalRecord(req.params.medicalRecordNumber);
+      res.json(successResponse("Detail kunjungan berhasil diambil", visit));
     } catch (error) {
       next(error);
     }
-  }
+  };
 
-  async updateVisitStatus(req: AuthRequest, res: Response, next: NextFunction) {
-  try {
-    const { status } = req.body;
-    const visit = await visitService.updateVisitStatus(req.params.id, status);
-    res.json(successResponse('Status kunjungan berhasil diupdate', visit));
-  } catch (error) {
-    next(error);
-  }
-}
+  createVisit = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const nurseId = req.user!.id;
+      const visit = await this.visitService.createVisit(req.body, nurseId);
+      res.status(201).json(successResponse("Kunjungan berhasil dibuat", visit));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getQueue = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const search = req.query.search as string;
+      const queue = await this.visitService.getQueue(search);
+      res.json(successResponse("Daftar antrian berhasil diambil", queue));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateVisitStatus = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      const visit = await this.visitService.updateVisitStatus(id, status);
+      res.json(successResponse("Status kunjungan berhasil diupdate", visit));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getCompletedVisits = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const search = req.query.search as string;
+
+      const result = await this.visitService.getCompletedVisits(page, limit, search);
+      res.json(successResponse("Daftar kunjungan selesai berhasil diambil", result));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateVisit = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      
+      const visit = await this.visitService.updateVisit(id, updateData);
+      res.json(successResponse("Kunjungan berhasil diupdate", visit));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateVisitExamination = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { chiefComplaint, bloodPressure, notes } = req.body;
+      
+      const visit = await this.visitService.updateVisitExamination(id, {
+        chiefComplaint,
+        bloodPressure,
+        notes
+      });
+      
+      res.json(successResponse("Detail pemeriksaan berhasil diupdate", visit));
+    } catch (error) {
+      next(error);
+    }
+  };
 }

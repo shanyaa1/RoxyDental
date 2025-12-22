@@ -36,7 +36,7 @@ export class AuthController {
   async forgotPassword(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       await authService.forgotPassword(req.body.email);
-      res.json(successResponse('Link reset password telah dikirim ke email'));
+      res.json(successResponse('Link reset password telah dikirim ke email Anda'));
     } catch (error) {
       next(error);
     }

@@ -2,18 +2,86 @@ import { prisma } from '../config/database';
 import { AppError } from '../middlewares/error.middleware';
 
 export class PatientService {
+  private async generatePatientNumber(): Promise<string> {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    
+    const lastPatient = await prisma.patient.findFirst({
+      where: {
+        patientNumber: {
+          startsWith: `P-${year}${month}`
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    let sequence = 1;
+    if (lastPatient) {
+      const lastSequence = parseInt(lastPatient.patientNumber.split('-')[2]);
+      sequence = lastSequence + 1;
+    }
+
+    return `P-${year}${month}-${String(sequence).padStart(4, '0')}`;
+  }
+
+  private async generateMedicalRecordNumber(): Promise<string> {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    
+    const lastPatient = await prisma.patient.findFirst({
+      where: {
+        medicalRecordNumber: {
+          startsWith: `RM-${year}${month}`
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    let sequence = 1;
+    if (lastPatient && lastPatient.medicalRecordNumber) {
+      const lastSequence = parseInt(lastPatient.medicalRecordNumber.split('-')[2]);
+      sequence = lastSequence + 1;
+    }
+
+    return `RM-${year}${month}-${String(sequence).padStart(4, '0')}`;
+  }
+
+  async updateMedicalHistory(patientId: string, medicalHistory: string) {
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId }
+    });
+
+    if (!patient) {
+      throw new AppError("Pasien tidak ditemukan", 404);
+    }
+
+    const updated = await prisma.patient.update({
+      where: { id: patientId },
+      data: { medicalHistory }
+    });
+
+    return updated;
+  }
+
   async getPatients(page: number = 1, limit: number = 10, search?: string) {
     const skip = (page - 1) * limit;
 
-    const where = search
-      ? {
-          OR: [
-            { fullName: { contains: search, mode: 'insensitive' as const } },
-            { patientNumber: { contains: search, mode: 'insensitive' as const } },
-            { phone: { contains: search } }
-          ]
-        }
-      : {};
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { fullName: { contains: search, mode: 'insensitive' as const } },
+        { patientNumber: { contains: search, mode: 'insensitive' as const } },
+        { medicalRecordNumber: { contains: search, mode: 'insensitive' as const } },
+        { phone: { contains: search } }
+      ];
+    }
 
     const [patients, total] = await Promise.all([
       prisma.patient.findMany({
@@ -21,15 +89,44 @@ export class PatientService {
         select: {
           id: true,
           patientNumber: true,
+          medicalRecordNumber: true,
           fullName: true,
           dateOfBirth: true,
           gender: true,
           phone: true,
           email: true,
+          address: true,
+          bloodType: true,
+          allergies: true,
+          medicalHistory: true,
           createdAt: true,
-          _count: {
+          visits: {
+            where: {
+              status: 'COMPLETED'
+            },
+            orderBy: {
+              visitDate: 'desc'
+            },
+            take: 1,
             select: {
-              visits: true
+              id: true,
+              visitNumber: true,
+              visitDate: true,
+              chiefComplaint: true,
+              treatments: {
+                take: 1,
+                orderBy: {
+                  createdAt: 'desc'
+                },
+                select: {
+                  diagnosis: true,
+                  service: {
+                    select: {
+                      serviceName: true
+                    }
+                  }
+                }
+              }
             }
           }
         },
@@ -42,8 +139,19 @@ export class PatientService {
       prisma.patient.count({ where })
     ]);
 
+    const patientsWithLastVisit = patients.map(p => ({
+      ...p,
+      lastVisit: p.visits[0]?.visitDate,
+      lastVisitId: p.visits[0]?.id,
+      lastVisitNumber: p.visits[0]?.visitNumber,
+      chiefComplaint: p.visits[0]?.chiefComplaint,
+      lastDiagnosis: p.medicalHistory || p.visits[0]?.treatments?.[0]?.diagnosis,
+      lastServiceName: p.visits[0]?.treatments?.[0]?.service?.serviceName,
+      visits: undefined
+    }));
+
     return {
-      patients,
+      patients: patientsWithLastVisit,
       pagination: {
         total,
         page,
@@ -58,10 +166,23 @@ export class PatientService {
       where: { id },
       include: {
         visits: {
+          where: {
+            status: 'COMPLETED'
+          },
           include: {
             nurse: {
               select: {
                 fullName: true
+              }
+            },
+            treatments: {
+              include: {
+                service: true,
+                performer: {
+                  select: {
+                    fullName: true
+                  }
+                }
               }
             }
           },
@@ -204,5 +325,45 @@ export class PatientService {
     });
 
     return treatment;
+  }
+
+  async createPatient(data: any): Promise<any> {
+    const existingPatient = await prisma.patient.findFirst({
+      where: {
+        phone: data.phone
+      }
+    });
+
+    if (existingPatient) {
+      if (!existingPatient.medicalRecordNumber) {
+        const medicalRecordNumber = await this.generateMedicalRecordNumber();
+        return await prisma.patient.update({
+          where: { id: existingPatient.id },
+          data: { medicalRecordNumber }
+        });
+      }
+      return existingPatient;
+    }
+
+    const patientNumber = await this.generatePatientNumber();
+    const medicalRecordNumber = await this.generateMedicalRecordNumber();
+
+    const patient = await prisma.patient.create({
+      data: {
+        patientNumber,
+        medicalRecordNumber,
+        fullName: data.fullName,
+        dateOfBirth: new Date(data.dateOfBirth),
+        gender: data.gender,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        bloodType: data.bloodType,
+        allergies: data.allergies,
+        medicalHistory: data.medicalHistory
+      }
+    });
+
+    return patient;
   }
 }

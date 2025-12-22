@@ -7,47 +7,67 @@ import { UserRole } from '../../generated/prisma';
 const router = Router();
 const userController = new UserController();
 
-// Admin/Dokter only routes
+router.get(
+  '/profile',
+  authMiddleware,
+  roleMiddleware(UserRole.DOKTER),
+  (req, res, next) => userController.getProfile(req, res, next)
+);
+
+router.put(
+  '/profile',
+  authMiddleware,
+  roleMiddleware(UserRole.DOKTER),
+  (req, res, next) => userController.updateProfile(req, res, next)
+);
+
+router.delete(
+  '/account',
+  authMiddleware,
+  roleMiddleware(UserRole.DOKTER),
+  (req, res, next) => userController.deleteAccount(req, res, next)
+);
+
 router.get(
   '/',
   authMiddleware,
   roleMiddleware(UserRole.DOKTER),
-  userController.getAllUsers
+  (req, res, next) => userController.getAllUsers(req, res, next)
 );
 
 router.get(
   '/:id',
   authMiddleware,
   roleMiddleware(UserRole.DOKTER),
-  userController.getUserById
+  (req, res, next) => userController.getUserById(req, res, next)
 );
 
 router.post(
   '/',
   authMiddleware,
   roleMiddleware(UserRole.DOKTER),
-  userController.createUser
+  (req, res, next) => userController.createUser(req, res, next)
 );
 
 router.put(
   '/:id',
   authMiddleware,
   roleMiddleware(UserRole.DOKTER),
-  userController.updateUser
+  (req, res, next) => userController.updateUser(req, res, next)
 );
 
 router.delete(
   '/:id',
   authMiddleware,
   roleMiddleware(UserRole.DOKTER),
-  userController.deleteUser
+  (req, res, next) => userController.deleteUser(req, res, next)
 );
 
 router.patch(
   '/:id/toggle-status',
   authMiddleware,
   roleMiddleware(UserRole.DOKTER),
-  userController.toggleUserStatus
+  (req, res, next) => userController.toggleUserStatus(req, res, next)
 );
 
 export default router;

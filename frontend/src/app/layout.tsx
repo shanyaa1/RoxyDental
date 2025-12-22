@@ -1,22 +1,30 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ProfileProvider } from "@/contexts/ProfileContext";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "POLADC - Dental Clinic | Klinik Gigi Profesional",
-  description: "POLADC Dental Clinic menyediakan layanan perawatan gigi profesional dengan teknologi modern dan tim dokter berpengalaman.",
+  title: "POLADC - Dental Clinic Management",
+  description: "Professional Dental Clinic Management System",
+
+  icons: {
+    icon: "/images/pink.png",                 
+    shortcut: "/images/pink.png",
+    apple: "/images/pink.png",               
+  },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id">
-      <body className="antialiased">
+    <html lang="en">
+      <body className={inter.className}>
         <AuthProvider>
-          {children}
+          <ProfileProvider>    
+            {children}
+          </ProfileProvider>
         </AuthProvider>
       </body>
     </html>

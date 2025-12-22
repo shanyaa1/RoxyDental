@@ -164,6 +164,98 @@ export class UserService {
     });
   }
 
+  async updateProfile(userId: string, data: any) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId }
+  });
+
+  if (!user) {
+    throw new AppError('User tidak ditemukan', 404);
+  }
+
+  if (data.email && data.email !== user.email) {
+    const existingUser = await prisma.user.findUnique({
+      where: { email: data.email }
+    });
+
+    if (existingUser) {
+      throw new AppError('Email sudah digunakan', 400);
+    }
+  }
+
+  const updateData: any = {
+    fullName: data.fullName,
+    email: data.email,
+    phone: data.phone,
+    specialization: data.specialization,
+    education: data.education,
+    experience: data.experience,
+    sipNumber: data.sipNumber,
+    profilePhoto: data.profilePhoto
+  };
+
+  if (data.sipStartDate) {
+    updateData.sipStartDate = new Date(data.sipStartDate);
+  }
+
+  if (data.sipEndDate) {
+    updateData.sipEndDate = new Date(data.sipEndDate);
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: updateData,
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      fullName: true,
+      role: true,
+      phone: true,
+      specialization: true,
+      education: true,
+      experience: true,
+      sipNumber: true,
+      sipStartDate: true,
+      sipEndDate: true,
+      profilePhoto: true,
+      isActive: true,
+      updatedAt: true
+    }
+  });
+
+  return updatedUser;
+}
+
+async getProfile(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      fullName: true,
+      role: true,
+      phone: true,
+      specialization: true,
+      education: true,
+      experience: true,
+      sipNumber: true,
+      sipStartDate: true,
+      sipEndDate: true,
+      profilePhoto: true,
+      isActive: true,
+      createdAt: true
+    }
+  });
+
+  if (!user) {
+    throw new AppError('User tidak ditemukan', 404);
+  }
+
+  return user;
+}
+
   async toggleUserStatus(id: string) {
     const user = await prisma.user.findUnique({
       where: { id }

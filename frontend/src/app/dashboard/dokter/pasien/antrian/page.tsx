@@ -1,81 +1,103 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import DoctorNavbar from "@/components/ui/navbardr";
-
-interface QueueType {
-  queueNo: string;
-  name: string;
-  rmNo: string;
-  doctor: string;
-  time: string;
-}
+import { visitService, Visit } from "@/services/visit.service";
+import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
+import { authService } from "@/services/auth.service";
 
 export default function QueuePage() {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  // GET PAGE FROM URL
-  const currentPageFromUrl = Number(searchParams.get("page")) || 1;
+  const { toast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [queues, setQueues] = useState<Visit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [doctor, setDoctor] = useState<any | null>(null); // dokter yang login
 
-  // Determine active tab
-  const activeTab =
-    pathname.includes("daftar-pasien")
-      ? "daftar-pasien"
-      : pathname.includes("rekam-medis")
-      ? "rekam-medis"
-      : "daftar-antrian";
+  const tabs = [
+    {
+      label: "Daftar Pasien",
+      value: "daftar-pasien",
+      href: "/dashboard/dokter/pasien/daftar-pasien",
+    },
+    {
+      label: "Daftar Antrian",
+      value: "daftar-antrian",
+      href: "/dashboard/dokter/pasien/antrian",
+    },
+    {
+      label: "Rekam Medis",
+      value: "rekam-medis",
+      href: "/dashboard/dokter/pasien/rekam-medis",
+    },
+  ];
 
-  const rowsPerPage = 20;
+  // Ambil user yang sedang login (role: DOKTER)
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (currentUser && currentUser.role === "DOKTER") {
+      setDoctor(currentUser);
+    }
+  }, []);
 
-  // Dummy data
-  const queues: QueueType[] = Array.from({ length: 25 }).map((_, i) => {
-    const hour = 8 + Math.floor(i / 2);
-    const minute = i % 2 === 0 ? "00" : "30";
-    const endHour = hour + (minute === "00" ? 0 : 1);
-    const endMinute = minute === "00" ? "30" : "00";
-
-    return {
-      queueNo: (i + 1).toString(),
-      name: `Pasien Antrian ${i + 1}`,
-      rmNo: i % 5 === 0 ? "-" : `008-0097${77 + i}`,
-      doctor: i % 2 === 0 ? "dr. Sarah Aminah" : "dr. Budi Santoso",
-      time: `${hour}:${minute} - ${endHour}:${endMinute}`,
-    };
-  });
-
-  // Filter
-  const filteredQueues = queues.filter((q) =>
-    q.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    q.rmNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    q.queueNo.includes(searchQuery)
-  );
-
-  // Pagination
-  const totalPages = Math.ceil(filteredQueues.length / rowsPerPage);
-  const startIdx = (currentPageFromUrl - 1) * rowsPerPage;
-  const currentQueues = filteredQueues.slice(
-    startIdx,
-    startIdx + rowsPerPage
-  );
-
-  // PUSH PAGE TO URL
-  const goToPage = (page: number) => {
-    const params = new URLSearchParams(searchParams);
-    params.set("page", String(page));
-    router.push(`${pathname}?${params.toString()}`);
+  const fetchQueue = async () => {
+    setLoading(true);
+    try {
+      // ambil antrian khusus dokter
+      const data = await visitService.getDoctorQueue(searchQuery);
+      setQueues(Array.isArray(data) ? data : []);
+    } catch (error: any) {
+      console.error("Error fetching queue:", error);
+      toast({
+        title: "Error",
+        description:
+          error?.response?.data?.message || "Gagal mengambil data antrian",
+        variant: "destructive",
+      });
+      setQueues([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Navigasi Tab — selalu reset to page=1
-  const goToTab = (tab: string) => {
-    router.push(`/dashboard/dokter/pasien/${tab}?page=1`);
+  useEffect(() => {
+    fetchQueue();
+    const interval = setInterval(fetchQueue, 10000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
+  const getStatusBadge = (status: string) => {
+    const statusMap: any = {
+      WAITING: { label: "Menunggu", class: "bg-yellow-100 text-yellow-800" },
+      IN_PROGRESS: {
+        label: "Sedang Dilayani",
+        class: "bg-blue-100 text-blue-800",
+      },
+      COMPLETED: { label: "Selesai", class: "bg-green-100 text-green-800" },
+      CANCELLED: { label: "Dibatalkan", class: "bg-red-100 text-red-800" },
+    };
+    return statusMap[status] || {
+      label: status,
+      class: "bg-gray-100 text-gray-800",
+    };
+  };
+
+  const formatTime = (date: string) => {
+    try {
+      return new Date(date).toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "-";
+    }
   };
 
   return (
@@ -85,26 +107,24 @@ export default function QueuePage() {
       <div className="pt-6 px-6 max-w-7xl mx-auto space-y-6">
         {/* Tabs */}
         <div className="flex gap-4 mb-4">
-          {[
-            { label: "Daftar Pasien", value: "daftar-pasien" },
-            { label: "Daftar Antrian", value: "daftar-antrian" },
-            { label: "Rekam Medis", value: "rekam-medis" },
-          ].map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => goToTab(tab.value)}
-              className={`px-4 py-2 rounded-full font-medium transition ${
-                activeTab === tab.value
-                  ? "bg-pink-600 text-white shadow-md"
-                  : "bg-white border border-pink-200 text-pink-600 hover:bg-pink-50"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            const isActive = pathname.includes(tab.value);
+            return (
+              <Link
+                key={tab.value}
+                href={tab.href}
+                className={`px-4 py-2 rounded-full font-medium transition ${
+                  isActive
+                    ? "bg-pink-600 text-white shadow-md"
+                    : "bg-white border border-pink-200 text-pink-600 hover:bg-pink-50"
+                }`}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
         </div>
 
-        {/* Title */}
         <h1 className="text-2xl font-bold text-pink-900">Daftar Antrian</h1>
 
         {/* Search */}
@@ -112,83 +132,91 @@ export default function QueuePage() {
           <div className="flex items-center gap-2">
             <Search className="w-5 h-5 text-pink-400" />
             <Input
-              placeholder="Cari No. Antrian / No. RM / Nama Pasien"
+              placeholder="Cari antrian..."
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                goToPage(1);
-              }}
-              className="flex-1 py-2 rounded-lg border border-pink-200 focus:ring-2 focus:ring-pink-300 focus:border-pink-600 text-pink-900"
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 py-2 rounded-lg border border-pink-200"
             />
           </div>
         </div>
 
-        {/* Table */}
+        {/* Tabel Antrian */}
         <div className="overflow-x-auto rounded-lg shadow-md bg-white border border-pink-100">
           <table className="min-w-full divide-y divide-pink-200 text-pink-900">
-            <thead className="bg-pink-100 text-pink-900">
+            <thead className="bg-pink-100">
               <tr>
                 {[
-                  "No. Antrian",
-                  "Nama Pasien",
-                  "No. RM",
-                  "Dokter",
-                  "Jam Janji",
-                ].map((head) => (
+                  "NO. ANTRIAN",
+                  "NO. PASIEN",
+                  "NAMA PASIEN",
+                  "JAM KUNJUNGAN",
+                  "DOKTER",
+                  "TINDAKAN",
+                  "STATUS",
+                ].map((h) => (
                   <th
-                    key={head}
+                    key={h}
                     className="px-4 py-3 text-left font-semibold text-sm"
                   >
-                    {head}
+                    {h}
                   </th>
                 ))}
               </tr>
             </thead>
-
             <tbody className="divide-y divide-pink-100">
-              {currentQueues.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-8">
+                    <div className="flex justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600" />
+                    </div>
+                  </td>
+                </tr>
+              ) : queues.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={7}
                     className="px-4 py-4 text-center text-pink-600"
                   >
-                    Data tidak ditemukan
+                    Tidak ada antrian
                   </td>
                 </tr>
               ) : (
-                currentQueues.map((queue, idx) => (
-                  <tr key={idx} className="hover:bg-pink-50">
-                    <td className="px-4 py-2">{queue.queueNo}</td>
-                    <td className="px-4 py-2 font-medium">{queue.name}</td>
-                    <td className="px-4 py-2">{queue.rmNo}</td>
-                    <td className="px-4 py-2">{queue.doctor}</td>
-                    <td className="px-4 py-2">{queue.time}</td>
-                  </tr>
-                ))
+                queues.map((queue, idx) => {
+                  const statusInfo = getStatusBadge(queue.status);
+                  return (
+                    <tr key={idx} className="hover:bg-pink-50">
+                      <td className="px-4 py-2">{queue.queueNumber}</td>
+                      <td className="px-4 py-2">
+                        {queue.patient?.patientNumber || "-"}
+                      </td>
+                      <td className="px-4 py-2 font-medium">
+                        {queue.patient?.fullName || "-"}
+                      </td>
+                      <td className="px-4 py-2">
+                        {formatTime(queue.visitDate)}
+                      </td>
+                      {/* dokter di kunjungan, fallback ke dokter yang sedang login */}
+                      <td className="px-4 py-2">
+                        {queue.doctor?.fullName || doctor?.fullName || "-"}
+                      </td>
+                      <td className="px-4 py-2">
+                        {queue.chiefComplaint || "-"}
+                      </td>
+                      <td className="px-4 py-2">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.class}`}
+                        >
+                          {statusInfo.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex justify-center gap-2 mt-4">
-            {Array.from({ length: totalPages }).map((_, i) => (
-              <Button
-                key={i}
-                size="sm"
-                className={`px-3 py-1 rounded-full ${
-                  currentPageFromUrl === i + 1
-                    ? "bg-pink-600 text-white"
-                    : "border border-pink-200 hover:bg-pink-50"
-                }`}
-                onClick={() => goToPage(i + 1)}
-              >
-                {i + 1}
-              </Button>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

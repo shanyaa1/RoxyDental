@@ -1,73 +1,50 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from '@/types/auth';
-import { authService } from '@/services/auth.service';
-import { useRouter } from 'next/navigation';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authService, LoginData, RegisterData } from '@/services/auth.service';
+
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  fullName: string;
+  role: string;
+  phone: string;
+  specialization?: string;
+  isActive: boolean;
+}
 
 interface AuthContextType {
   user: User | null;
-  loading: boolean;
   login: (username: string, password: string, role: 'DOKTER' | 'PERAWAT') => Promise<void>;
-  register: (data: any) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
-  // Initialize auth state
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const storedUser = authService.getStoredUser();
-        const token = authService.getToken();
-
-        if (storedUser && token) {
-          // Verify token by fetching current user
-          const currentUser = await authService.getCurrentUser();
-          setUser(currentUser);
-        }
-      } catch (error) {
-        // Token invalid or expired
-        authService.logout();
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initAuth();
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) {
+      setUser(currentUser);
+    }
+    setLoading(false);
   }, []);
 
   const login = async (username: string, password: string, role: 'DOKTER' | 'PERAWAT') => {
-    try {
-      const response = await authService.login({ username, password, role });
-      setUser(response.data.user);
-      
-      // Redirect based on role
-      if (role === 'DOKTER') {
-        router.push('/dashboard/dokter/utama');
-      } else {
-        router.push('/dashboard/perawat/main');
-      }
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Login gagal');
-    }
+    const response = await authService.login({ username, password, role });
+    setUser(response.data.user);
   };
 
-  const register = async (data: any) => {
-    try {
-      const response = await authService.register(data);
-      setUser(response.data.user);
-      router.push('/dashboard/perawat/main');
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Registrasi gagal');
-    }
+  const register = async (data: RegisterData) => {
+    const response = await authService.register(data);
+    setUser(response.data.user);
   };
 
   const logout = () => {
@@ -79,11 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        loading,
         login,
         register,
         logout,
         isAuthenticated: !!user,
+        loading,
       }}
     >
       {children}

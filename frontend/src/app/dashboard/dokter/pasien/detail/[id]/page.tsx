@@ -1,281 +1,394 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
+import { visitService, Visit } from "@/services/visit.service";
+import { treatmentService } from "@/services/treatment.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, User, FileText, Pill, Download } from "lucide-react";
-import { format, parse } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
-import Link from "next/link";
-import { Input } from "@/components/ui/input";
+import { ArrowLeft, Edit, Trash2, Plus } from "lucide-react";
+import DoctorNavbar from "@/components/ui/navbardr";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-interface RecordType {
-  rmNo: string;
-  noId: string;
-  name: string;
-  date: string;
-  doctor: string;
-  diagnosis: string;
-  action: string;
-  treatmentType: string;
-  chiefComplaint: string;
-  examinationResults: string;
-  treatmentPlan: string;
-  notes?: string;
-  medications?: { id: string; name: string; dosage: string; duration: string; instructions?: string }[];
-  procedures?: { id: string; procedureName: string; quantity: number; price: number; totalPrice: number; commission: number }[];
-  packages?: { id: string; packageName: string; quantity: number; price: number; totalPrice: number; commission: number }[];
-}
-
-// Dummy Data
-const dummyRecords: RecordType[] = Array.from({ length: 30 }).map((_, i) => ({
-  rmNo: `RM-${(i + 1).toString().padStart(3, "0")}`,
-  noId: `008-00${900 + i}`,
-  name: `Pasien Dummy ${i + 1}`,
-  date: `0${(i % 12) + 1} Juli 2025`,
-  doctor: i % 2 === 0 ? "dr. Sarah Aminah" : "dr. Budi Santoso",
-  diagnosis: i % 3 === 0 ? "Kalkulus supragingiva" : "Karies dentini",
-  action: i % 2 === 0 ? "Scaling Class 1" : "Tambal Gigi Anterior",
-  treatmentType: i % 2 === 0 ? "Scaling" : "Tambal",
-  chiefComplaint: "Gigi sensitif dan berlubang",
-  examinationResults: "Gigi atas sensitif, karies dentini pada gigi seri",
-  treatmentPlan: "Tambal gigi dan scaling",
-  notes: i % 2 === 0 ? "Pasien perlu kontrol 1 minggu lagi" : undefined,
-  medications: [
-    { id: "1", name: "Obat A", dosage: "1x sehari", duration: "5 hari", instructions: "Setelah makan" },
-  ],
-  procedures: [
-    { id: "1", procedureName: "Scaling", quantity: 1, price: 50000, totalPrice: 50000, commission: 10000 },
-  ],
-  packages: [
-    { id: "1", packageName: "Paket Gigi Sehat", quantity: 1, price: 100000, totalPrice: 100000, commission: 20000 },
-  ],
-}));
-
-// ===================== Daftar Pasien =====================
-export function MedicalRecordsPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 10;
-
-  const filteredRecords = dummyRecords.filter(
-    r =>
-      r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.noId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.rmNo.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const totalPages = Math.ceil(filteredRecords.length / rowsPerPage);
-  const startIdx = (currentPage - 1) * rowsPerPage;
-  const currentRecords = filteredRecords.slice(startIdx, startIdx + rowsPerPage);
-
-  return (
-    <div className="min-h-screen bg-[#FFF5F7] p-6">
-      <h1 className="text-2xl font-bold mb-4">Daftar Pasien</h1>
-
-      {/* Search */}
-      <div className="mb-4 max-w-md relative">
-        <Input
-          placeholder="Cari No. RM / No. ID / Nama Pasien"
-          value={searchQuery}
-          onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-        />
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto rounded-lg shadow-md bg-white">
-        <table className="min-w-full divide-y divide-pink-200">
-          <thead className="bg-pink-100 text-pink-900">
-            <tr>
-              {["NO. RM", "NO. ID", "NAMA PASIEN", "TANGGAL", "DOKTER", "DIAGNOSIS", "TINDAKAN", "DETAIL"].map(h => (
-                <th key={h} className="px-4 py-3 text-left font-semibold text-sm">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-pink-100 text-pink-900">
-            {currentRecords.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-4 text-center text-pink-600">Data tidak ditemukan</td>
-              </tr>
-            ) : (
-              currentRecords.map((record, idx) => (
-                <tr key={idx} className="hover:bg-pink-50">
-                  <td className="px-4 py-2">{record.rmNo}</td>
-                  <td className="px-4 py-2">{record.noId}</td>
-                  <td className="px-4 py-2 font-medium">{record.name}</td>
-                  <td className="px-4 py-2">{record.date}</td>
-                  <td className="px-4 py-2">{record.doctor}</td>
-                  <td className="px-4 py-2"><Badge variant="secondary">{record.diagnosis}</Badge></td>
-                  <td className="px-4 py-2">{record.action}</td>
-                  <td className="px-4 py-2">
-                    <Link href={`/dashboard/dokter/pasien/detail/${record.rmNo}`}>
-                      <Button size="sm" variant="outline">Detail</Button>
-                    </Link>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-2 mt-4">
-          {Array.from({ length: totalPages }).map((_, i) => (
-            <Button
-              key={i}
-              size="sm"
-              className={`${currentPage === i + 1 ? "bg-pink-600 text-white" : "border border-pink-200 hover:bg-pink-50"}`}
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </Button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ===================== Detail Pasien =====================
 interface DetailProps {
   params: { id: string };
 }
 
 export default function MedicalRecordDetailPage({ params }: DetailProps) {
-  const recordId = params.id;
-  const record = dummyRecords.find(r => r.rmNo === recordId); // pakai rmNo supaya konsisten
+  const visitId = params.id;
+  const router = useRouter();
+  const { toast } = useToast();
 
-  if (!record) return <p className="text-center mt-10 text-red-600">ID tidak ditemukan</p>;
+  const [data, setData] = useState<Visit | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedTreatmentId, setSelectedTreatmentId] = useState<string | null>(
+    null
+  );
+
+  useEffect(() => {
+    fetchVisitData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visitId]);
+
+  const fetchVisitData = async () => {
+    try {
+      setLoading(true);
+      // service sekarang langsung mengembalikan Visit
+      const visit = await visitService.getVisitById(visitId);
+      setData(visit);
+    } catch (error: any) {
+      console.error("Error fetching visit data:", error);
+      toast({
+        title: "Error",
+        description:
+          error?.response?.data?.message || "Gagal memuat data rekam medis",
+        variant: "destructive",
+      });
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteTreatment = async () => {
+    if (!selectedTreatmentId) return;
+
+    try {
+      await treatmentService.deleteTreatment(selectedTreatmentId);
+      toast({
+        title: "Sukses",
+        description: "Treatment berhasil dihapus",
+      });
+      setDeleteDialogOpen(false);
+      setSelectedTreatmentId(null);
+      fetchVisitData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description:
+          error?.response?.data?.message || "Gagal menghapus treatment",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const calculateAge = (dateOfBirth: string) => {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birthDate.getDate())
+    ) {
+      age--;
+    }
+    return age;
+  };
+
+  const formatDate = (date: string) =>
+    new Date(date).toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(amount);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#FFF5F7]">
+        <DoctorNavbar />
+        <div className="flex items-center justify-center h-[calc(100vh-80px)]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-600" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!data || !data.patient) {
+    return (
+      <div className="min-h-screen bg-[#FFF5F7]">
+        <DoctorNavbar />
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-80px)]">
+          <p className="text-gray-500 mb-4">Data tidak ditemukan</p>
+          <Button onClick={() => router.back()} variant="outline">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Kembali
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/dashboard/dokter/pasien">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Kembali
-            </Link>
+    <div className="min-h-screen bg-[#FFF5F7]">
+      <DoctorNavbar />
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Detail Rekam Medis</h1>
+          <Button onClick={() => router.back()} variant="outline">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Kembali
           </Button>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-2xl font-bold">{record.rmNo}</h1>
-              <Badge variant="secondary">Final</Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">{record.date}</p>
-          </div>
         </div>
-        <Button variant="outline" className="gap-2">
-          <Download className="w-4 h-4" />
-          Unduh PDF
-        </Button>
-      </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Patient Info */}
-        <Card className="lg:col-span-1">
-          <CardHeader className="bg-primary/5">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <User className="w-5 h-5" />
-              Informasi Pasien
-            </CardTitle>
+        {/* Informasi Pasien */}
+        <Card>
+          <CardHeader className="bg-pink-50">
+            <CardTitle className="text-pink-600">Informasi Pasien</CardTitle>
           </CardHeader>
-          <CardContent className="pt-6 space-y-4">
+          <CardContent className="pt-6 grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">NO. RM</p>
-              <p className="font-semibold">{record.rmNo}</p>
+              <p className="text-sm text-gray-500">No. Pasien</p>
+              <p className="font-semibold">
+                {data.patient.patientNumber || "-"}
+              </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-1">NO. ID</p>
-              <p className="font-medium">{record.noId}</p>
+              <p className="text-sm text-gray-500">Nama Lengkap</p>
+              <p className="font-semibold">{data.patient.fullName || "-"}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-1">NAMA LENGKAP</p>
-              <p className="font-medium">{record.name}</p>
+              <p className="text-sm text-gray-500">Umur</p>
+              <p className="font-semibold">
+                {data.patient.dateOfBirth
+                  ? `${calculateAge(data.patient.dateOfBirth)} tahun`
+                  : "-"}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Jenis Kelamin</p>
+              <p className="font-semibold">
+                {data.patient.gender === "L"
+                  ? "Laki-laki"
+                  : data.patient.gender === "P"
+                  ? "Perempuan"
+                  : "-"}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">No. Telepon</p>
+              <p className="font-semibold">{data.patient.phone || "-"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Email</p>
+              <p className="font-semibold">{data.patient.email || "-"}</p>
+            </div>
+            {data.patient.bloodType && (
+              <div>
+                <p className="text-sm text-gray-500">Golongan Darah</p>
+                <p className="font-semibold">{data.patient.bloodType}</p>
+              </div>
+            )}
+            {data.patient.allergies && (
+              <div className="col-span-2">
+                <p className="text-sm text-gray-500">Alergi</p>
+                <p className="font-semibold text-red-600">
+                  {data.patient.allergies}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Informasi Kunjungan */}
+        <Card>
+          <CardHeader className="bg-pink-50">
+            <CardTitle className="text-pink-600">Informasi Kunjungan</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6 grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-500">No. Antrian</p>
+              <p className="font-semibold">{data.queueNumber || "-"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Perawat</p>
+              <p className="font-semibold">{data.nurse?.fullName || "-"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Tanggal Kunjungan</p>
+              <p className="font-semibold">
+                {data.visitDate ? formatDate(data.visitDate) : "-"}
+              </p>
+            </div>
+            {data.bloodPressure && (
+              <div>
+                <p className="text-sm text-gray-500">Tekanan Darah</p>
+                <p className="font-semibold">{data.bloodPressure}</p>
+              </div>
+            )}
+            <div className="col-span-2">
+              <p className="text-sm text-gray-500">Keluhan Utama</p>
+              <p className="font-semibold">{data.chiefComplaint || "-"}</p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Visit Info */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="bg-accent/20 border-accent-foreground/20">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Informasi Kunjungan
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">TINDAKAN</p>
-                <Badge>{record.treatmentType}</Badge>
+        {/* Riwayat Treatment */}
+        <Card>
+          <CardHeader className="bg-pink-50 flex flex-row items-center justify-between">
+            <CardTitle className="text-pink-600">Riwayat Treatment</CardTitle>
+            <Button
+              onClick={() =>
+                router.push(
+                  `/dashboard/dokter/pasien/detail/${visitId}/tambah-treatment`
+                )
+              }
+              className="bg-pink-600 hover:bg-pink-700"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Tambah Treatment
+            </Button>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {!data.treatments || data.treatments.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">
+                Belum ada treatment untuk kunjungan ini
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {data.treatments.map((treatment: any) => (
+                  <Card
+                    key={treatment.id}
+                    className="border-l-4 border-l-pink-600"
+                  >
+                    <CardContent className="pt-6">
+                      <div className="flex justify-end mb-4 gap-2">
+                        <Button
+                          onClick={() =>
+                            router.push(
+                              `/dashboard/dokter/pasien/detail/${visitId}/${treatment.id}/edit-treatment/${treatment.id}`
+                            )
+                          }
+                          variant="outline"
+                          size="sm"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setSelectedTreatmentId(treatment.id);
+                            setDeleteDialogOpen(true);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Hapus
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-500">
+                            Tanggal Treatment
+                          </p>
+                          <p className="font-semibold">
+                            {treatment.createdAt
+                              ? formatDate(treatment.createdAt)
+                              : "-"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Dokter</p>
+                          <p className="font-semibold">
+                            {treatment.performer?.fullName || "-"}
+                          </p>
+                        </div>
+                        {treatment.service && (
+                          <div className="col-span-2">
+                            <p className="text-sm text-gray-500">Layanan</p>
+                            <p className="font-semibold">
+                              {treatment.service.serviceName}
+                            </p>
+                          </div>
+                        )}
+                        {treatment.toothNumber && (
+                          <div>
+                            <p className="text-sm text-gray-500">
+                              Nomor Gigi
+                            </p>
+                            <p className="font-semibold">
+                              {treatment.toothNumber}
+                            </p>
+                          </div>
+                        )}
+                        <div className="col-span-2">
+                          <p className="text-sm text-gray-500">Diagnosis</p>
+                          <p className="font-semibold">
+                            {treatment.diagnosis || "-"}
+                          </p>
+                        </div>
+                        {treatment.treatmentNotes && (
+                          <div className="col-span-2">
+                            <p className="text-sm text-gray-500">
+                              Catatan Treatment
+                            </p>
+                            <p className="font-semibold">
+                              {treatment.treatmentNotes}
+                            </p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm text-gray-500">Jumlah</p>
+                          <p className="font-semibold">
+                            {treatment.quantity}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Subtotal</p>
+                          <p className="font-semibold">
+                            {formatCurrency(treatment.subtotal)}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">DIAGNOSIS</p>
-                <p className="font-semibold">{record.diagnosis}</p>
-              </div>
-            </CardContent>
-          </Card>
+            )}
+          </CardContent>
+        </Card>
 
-          {/* Pemeriksaan */}
-          <Card>
-            <CardHeader className="bg-primary/5">
-              <CardTitle>Detail Pemeriksaan</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-6">
-              <div>
-                <p className="text-sm font-semibold mb-1">KELUHAN UTAMA</p>
-                <p>{record.chiefComplaint}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold mb-1">HASIL PEMERIKSAAN FISIK</p>
-                <p>{record.examinationResults}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold mb-1">RENCANA PERAWATAN</p>
-                <p>{record.treatmentPlan}</p>
-              </div>
-              {record.notes && (
-                <div>
-                  <p className="text-sm font-semibold mb-1">CATATAN TAMBAHAN</p>
-                  <div className="p-3 bg-accent/10 rounded-lg border border-accent-foreground/20 italic">{record.notes}</div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Medications */}
-        {(record.medications?.length ?? 0) > 0 && (
-  <Card>
-    <CardHeader className="bg-accent/10">
-      <CardTitle className="flex items-center gap-2">
-        <Pill className="w-5 h-5" /> Obat
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="space-y-3 pt-6">
-      {(record.medications ?? []).map(med => (
-        <div key={med.id} className="p-4 bg-muted rounded-lg">
-          <div className="flex justify-between">
-            <div>
-              <p className="font-semibold">{med.name}</p>
-              <p className="text-sm">Dosis: {med.dosage}</p>
-            </div>
-            <Badge variant="secondary">Durasi: {med.duration}</Badge>
-          </div>
-          {med.instructions && <p className="text-xs mt-2">Instruksi: {med.instructions}</p>}
-        </div>
-      ))}
-    </CardContent>
-  </Card>
-)}
-
-        </div>
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
+              <AlertDialogDescription>
+                Apakah Anda yakin ingin menghapus treatment ini? Tindakan ini
+                tidak dapat dibatalkan.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Batal</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteTreatment}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Hapus
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

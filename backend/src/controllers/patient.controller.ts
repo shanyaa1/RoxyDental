@@ -20,6 +20,18 @@ export class PatientController {
     }
   }
 
+  async updateMedicalHistory(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const patient = await patientService.updateMedicalHistory(
+        req.params.id,
+        req.body.medicalHistory
+      );
+      res.json(successResponse("Riwayat medis berhasil diupdate", patient));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getPatientById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const patient = await patientService.getPatientById(req.params.id);
@@ -46,6 +58,15 @@ export class PatientController {
         req.user!.id
       );
       res.status(201).json(successResponse('Treatment berhasil ditambahkan', treatment));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async createPatient(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const patient = await patientService.createPatient(req.body);
+      res.status(201).json(successResponse('Pasien berhasil ditambahkan', patient));
     } catch (error) {
       next(error);
     }

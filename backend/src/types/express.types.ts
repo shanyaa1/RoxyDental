@@ -5,10 +5,10 @@ export interface AuthUser {
   id: string;
   username: string;
   email: string;
-  role: UserRole;
   fullName: string;
+  role: UserRole;
 }
 
-export interface AuthRequest extends Request {
-  user?: AuthUser;
+export interface AuthRequest extends Omit<Request, 'user'> {
+  user: AuthUser;
 }

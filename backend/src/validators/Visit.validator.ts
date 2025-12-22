@@ -18,8 +18,16 @@ export const createVisitSchema = z.object({
     medicalHistory: z.string().optional()
   }),
   visit: z.object({
-    visitDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
-      message: 'Format tanggal tidak valid'
+    visitDate: z.string().refine((date) => {
+      const parsedDate = new Date(date);
+      if (isNaN(parsedDate.getTime())) {
+        return false;
+      }
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return parsedDate >= thirtyDaysAgo;
+    }, {
+      message: 'Tanggal dan jam kunjungan tidak valid atau terlalu lama'
     }),
     chiefComplaint: z.string().optional(),
     bloodPressure: z.string().optional(),
