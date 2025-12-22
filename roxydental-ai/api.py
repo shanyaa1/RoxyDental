@@ -1,140 +1,237 @@
 import os
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
-import google.generativeai as genai
+import requests
+import time
 from dotenv import load_dotenv
 
-# 1. Load Config
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
-genai.configure(api_key=GEMINI_KEY)
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL tidak ditemukan di .env")
+if not GEMINI_KEY:
+    raise ValueError("GEMINI_API_KEY tidak ditemukan di .env")
 
-# 2. Setup Database Engine
 try:
     engine = create_engine(DATABASE_URL)
-    print("✅ Koneksi ke Supabase Berhasil")
+    print("✅ Koneksi ke Database Berhasil")
 except Exception as e:
-    print(f"❌ Koneksi Gagal: {e}")
+    print(f"❌ Koneksi Database Gagal: {e}")
+    raise
 
-app = FastAPI(title="RoxyDental AI Service")
+app = FastAPI(
+    title="RoxyDental AI Service",
+    description="AI Service for Forecasting & Chatbot",
+    version="1.0.0"
+)
 
-# --- FUNGSI BANTUAN (Helper) ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 def get_data_weekly():
     """Mengambil data payments dan mengubahnya jadi mingguan"""
     try:
         query = text("""
             SELECT payment_date as tanggal, amount as total_bayar 
             FROM payments 
+            WHERE payment_date IS NOT NULL 
+            AND amount > 0
             ORDER BY payment_date ASC
         """)
         with engine.connect() as conn:
             df = pd.read_sql(query, conn)
         
-        if df.empty: return None
+        if df.empty:
+            return None
 
-        df['tanggal'] = pd.to_datetime(df['tanggal'])
-        # Resample Mingguan (Senin)
+        df['tanggal'] = pd.to_datetime(df['tanggal'], errors='coerce')
+        df = df.dropna(subset=['tanggal'])
+        
+        if df.empty:
+            return None
+        
         df_weekly = df.set_index('tanggal').resample('W-MON').agg(
             Revenue=('total_bayar', 'sum'),
             Transaction_Count=('total_bayar', 'count')
         )
         return df_weekly.fillna(0)
     except Exception as e:
-        print(f"DB Error: {e}")
+        print(f"❌ Database Error: {e}")
         return None
 
-# --- FITUR 1: FORECASTING (FR-28) ---
+@app.get("/")
+def root():
+    return {
+        "service": "RoxyDental AI Service",
+        "status": "running",
+        "endpoints": ["/predict", "/chat"]
+    }
+
 @app.get("/predict")
 def predict_performance():
-    df = get_data_weekly()
-    
-    # Butuh minimal 5 minggu data agar rumus bekerja
-    if df is None or len(df) < 5:
-        return {"status": "warning", "message": "Data belum cukup (min 5 minggu)", "data": []}
-
+    """Forecasting revenue dan jumlah pasien untuk 4 minggu ke depan"""
     try:
-        # Rumus Holt-Winters (Retraining on-the-fly)
-        model_rev = ExponentialSmoothing(df['Revenue'], trend='add', damped_trend=True, seasonal=None).fit()
+        df = get_data_weekly()
+        
+        if df is None or len(df) < 5:
+            return {
+                "status": "warning",
+                "message": "Data belum cukup untuk prediksi (minimum 5 minggu data historis diperlukan)",
+                "data": []
+            }
+
+        model_rev = ExponentialSmoothing(
+            df['Revenue'],
+            trend='add',
+            damped_trend=True,
+            seasonal=None
+        ).fit()
         pred_rev = model_rev.forecast(4)
         
-        model_tx = ExponentialSmoothing(df['Transaction_Count'], trend='add', seasonal=None).fit()
+        model_tx = ExponentialSmoothing(
+            df['Transaction_Count'],
+            trend='add',
+            seasonal=None
+        ).fit()
         pred_tx = model_tx.forecast(4)
         
         results = []
         for date, rev, tx in zip(pred_rev.index, pred_rev, pred_tx):
             results.append({
                 "date": date.strftime('%Y-%m-%d'),
-                "revenue": max(0, round(rev)),
-                "patients": max(0, int(round(tx)))
+                "revenue": max(0, round(float(rev))),
+                "patients": max(0, int(round(float(tx))))
             })
-        return {"status": "success", "data": results}
+        
+        return {
+            "status": "success",
+            "message": "Prediksi berhasil dibuat",
+            "data": results
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"❌ Prediction Error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Gagal membuat prediksi: {str(e)}"
+        )
 
-# --- FITUR 2: CHATBOT TIKA (FR-27) ---
 class ChatInput(BaseModel):
     message: str
     user_name: str = "User"
 
 @app.post("/chat")
 def chat_with_tika(item: ChatInput):
-    df = get_data_weekly()
-    
-    # Ambil ringkasan 5 minggu terakhir sebagai konteks
-    context = "Data Kosong"
-    if df is not None:
-        context = df.tail(5).to_string()
-
+    """Chatbot Tika menggunakan Gemini AI"""
     try:
+        df = get_data_weekly()
+        
+        context = "Data transaksi belum tersedia"
+        if df is not None and len(df) > 0:
+            recent_data = df.tail(5)
+            total_revenue = recent_data['Revenue'].sum()
+            total_patients = recent_data['Transaction_Count'].sum()
+            avg_revenue = total_revenue / len(recent_data)
+            
+            context = f"""
+            Data 5 Minggu Terakhir:
+            - Total Pendapatan: Rp {total_revenue:,.0f}
+            - Rata-rata per Minggu: Rp {avg_revenue:,.0f}
+            - Total Transaksi: {int(total_patients)} pasien
+            - Rata-rata Pasien/Minggu: {int(total_patients/len(recent_data))} pasien
+            """
+
         system_prompt = f"""
-        Kamu adalah Tika, asisten manajer klinik gigi RoxyDental.
-        Jawablah pertanyaan user dengan ramah dan ringkas.
-        Gunakan data 5 minggu terakhir ini sebagai acuan:
+        Kamu adalah Tika, asisten virtual untuk RoxyDental Clinic.
+        Tugasmu adalah membantu menjawab pertanyaan tentang klinik dengan ramah dan profesional.
+        
+        Informasi Klinik:
         {context}
+        
+        Panduan Menjawab:
+        - Jawab dengan ramah dan to-the-point
+        - Gunakan data di atas jika relevan
+        - Jika tidak tahu, katakan dengan jujur
+        - Hindari informasi medis yang memerlukan konsultasi dokter
         """
         
-        # GANTI MODEL: Pakai model yang TERSEDIA di list (gemini-2.5-flash)
-        GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}"
+        GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
         
         headers = {"Content-Type": "application/json"}
         payload = {
             "contents": [{
-                "parts": [{"text": f"{system_prompt}\nUser: {item.message}"}]
-            }]
+                "parts": [{"text": f"{system_prompt}\n\nUser ({item.user_name}): {item.message}"}]
+            }],
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 500
+            }
         }
 
-        import requests
-        import time
-        
-        # Retry mechanism for 503 (Server Overloaded)
         for attempt in range(3):
-            response = requests.post(GEMINI_URL, headers=headers, json=payload)
+            response = requests.post(GEMINI_URL, headers=headers, json=payload, timeout=10)
             
             if response.status_code == 200:
                 result = response.json()
-                reply_text = result['candidates'][0]['content']['parts'][0]['text']
-                return {"status": "success", "reply": reply_text}
+                
+                if 'candidates' in result and len(result['candidates']) > 0:
+                    reply_text = result['candidates'][0]['content']['parts'][0]['text']
+                    return {
+                        "status": "success",
+                        "reply": reply_text.strip()
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "reply": "Maaf, Tika tidak dapat memproses pertanyaan tersebut. Coba pertanyaan lain."
+                    }
+                    
             elif response.status_code == 503:
-                # Server busy, wait and retry
-                print(f"⚠️ Model Overloaded (Attempt {attempt+1}/3). Retrying in 2s...")
-                time.sleep(2)
+                print(f"⚠️ Model Overloaded (Attempt {attempt+1}/3)")
+                if attempt < 2:
+                    time.sleep(2)
             elif response.status_code == 429:
-                # Rate limit, wait longer
-                print(f"⚠️ Rate Limit Hit (Attempt {attempt+1}/3). Retrying in 4s...")
-                time.sleep(4)
+                print(f"⚠️ Rate Limit (Attempt {attempt+1}/3)")
+                if attempt < 2:
+                    time.sleep(4)
             else:
-                # Other errors (400, 401, etc), fail immediately
+                print(f"❌ API Error: {response.status_code} - {response.text}")
                 break
         
-        # If we get here, all retries failed
-        error_msg = response.text if response else "Unknown Error"
-        return {"status": "error", "reply": f"Maaf, server otak Tika sedang penuh (Error {response.status_code}). Mohon tanya lagi dalam beberapa detik. 🙏"}
+        return {
+            "status": "error",
+            "reply": "Maaf, Tika sedang sibuk. Mohon coba lagi dalam beberapa saat. 🙏"
+        }
             
     except Exception as e:
-        print(f"Error Chat: {e}")
-        return {"status": "error", "reply": "Maaf, sistem sedang sibuk."}
+        print(f"❌ Chat Error: {e}")
+        return {
+            "status": "error",
+            "reply": "Maaf, terjadi kesalahan sistem. Silakan coba lagi."
+        }
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint"""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_status = "connected"
+    except:
+        db_status = "disconnected"
+    
+    return {
+        "status": "healthy",
+        "database": db_status,
+        "gemini_api": "configured" if GEMINI_KEY else "not configured"
+    }
