@@ -1,7 +1,6 @@
 import { Response } from 'express';
-import { PrismaClient, Prisma, UserRole } from '../../generated/prisma';
-
-const prisma = new PrismaClient();
+import { Prisma, UserRole } from '../../generated/prisma';
+import { prisma } from '../config/database';
 
 interface AuthRequest {
   user: {
@@ -123,7 +122,7 @@ export const getAllLeaveRequests = async (req: any, res: Response): Promise<void
 export const getPendingLeaveRequests = async (req: any, res: Response): Promise<void> => {
   try {
     const leaves = await prisma.leaveRequest.findMany({
-      where: { 
+      where: {
         status: 'PENDING',
         requester: {
           role: 'PERAWAT'
@@ -191,8 +190,8 @@ export const createLeaveRequest = async (req: any, res: Response): Promise<void>
       return;
     }
 
-    const validLeaveType = leaveType && ['SICK', 'ANNUAL', 'EMERGENCY', 'UNPAID'].includes(leaveType) 
-      ? leaveType 
+    const validLeaveType = leaveType && ['SICK', 'ANNUAL', 'EMERGENCY', 'UNPAID'].includes(leaveType)
+      ? leaveType
       : 'ANNUAL';
 
     const status = userRole === 'DOKTER' ? 'APPROVED' : 'PENDING';
@@ -241,8 +240,8 @@ export const createLeaveRequest = async (req: any, res: Response): Promise<void>
     res.status(201).json({
       success: true,
       data: leave,
-      message: userRole === 'DOKTER' 
-        ? 'Pengajuan cuti berhasil dibuat' 
+      message: userRole === 'DOKTER'
+        ? 'Pengajuan cuti berhasil dibuat'
         : 'Pengajuan cuti berhasil dibuat dan menunggu persetujuan dokter'
     });
   } catch (error: any) {
@@ -625,7 +624,7 @@ export const getCalendarEvents = async (req: any, res: Response): Promise<void> 
         const hours = visitDate.getHours();
         const minutes = visitDate.getMinutes();
         const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-        
+
         const endMinutes = minutes + 30;
         const endHours = hours + Math.floor(endMinutes / 60);
         const finalEndMinutes = endMinutes % 60;
@@ -746,7 +745,7 @@ export const getMyCalendarEvents = async (req: any, res: Response): Promise<void
         const hours = visitDate.getHours();
         const minutes = visitDate.getMinutes();
         const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-        
+
         const endMinutes = minutes + 30;
         const endHours = hours + Math.floor(endMinutes / 60);
         const finalEndMinutes = endMinutes % 60;

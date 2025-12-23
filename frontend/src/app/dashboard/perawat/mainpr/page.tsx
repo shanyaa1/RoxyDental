@@ -5,14 +5,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import DoctorNavbar from "@/components/ui/navbarpr";
 import AuthGuard from "@/components/AuthGuard";
-import { 
-  User, MapPin, Calendar, Users, Clock, FileText, GraduationCap, 
-  Briefcase, Award, Loader2 
+import {
+  User, MapPin, Calendar, Users, Clock, FileText, GraduationCap,
+  Briefcase, Award, Loader2
 } from "lucide-react";
 import { dashboardNurseService, NurseDashboardData } from '@/services/dashboard-nurse.service';
 import { nurseProfileService, ProfileCompletion, ShiftStatus } from '@/services/nurse-profile.service';
 
-function DashboardContent() {
+export function DashboardContent() {
   const [dashboardData, setDashboardData] = useState<NurseDashboardData | null>(null);
   const [completion, setCompletion] = useState<ProfileCompletion | null>(null);
   const [shiftStatus, setShiftStatus] = useState<ShiftStatus | null>(null);
@@ -31,7 +31,7 @@ function DashboardContent() {
         nurseProfileService.getProfileCompletion(),
         nurseProfileService.getCurrentShiftStatus()
       ]);
-      
+
       setDashboardData(dashboardRes.data);
       setCompletion(completionRes.data);
       setShiftStatus(shiftRes.data);
@@ -65,7 +65,7 @@ function DashboardContent() {
         <div className="flex items-center justify-center h-[calc(100vh-80px)]">
           <div className="text-center">
             <p className="text-red-600 mb-4">{error}</p>
-            <button 
+            <button
               onClick={fetchDashboardData}
               className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700"
             >

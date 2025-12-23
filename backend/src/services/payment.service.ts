@@ -59,7 +59,48 @@ export class PaymentService {
       }
     });
 
+    // Create commissions if payment is fully paid
+    if (status === PaymentStatus.PAID) {
+      await this.createCommissionsForVisit(data.visitId);
+    }
+
     return payment;
+  }
+
+  private async createCommissionsForVisit(visitId: string) {
+    // Get all treatments for this visit with service and performer details
+    const treatments = await prisma.treatment.findMany({
+      where: { visitId },
+      include: {
+        service: true,
+        performer: true
+      }
+    });
+
+    const currentDate = new Date();
+    const periodMonth = currentDate.getMonth() + 1;
+    const periodYear = currentDate.getFullYear();
+
+    // Create commission for each treatment
+    for (const treatment of treatments) {
+      if (treatment.service.commissionRate && treatment.performer) {
+        const unitPrice = treatment.unitPrice.toNumber();
+        const subtotal = unitPrice * treatment.quantity;
+        const commissionAmount = (subtotal * treatment.service.commissionRate.toNumber()) / 100;
+
+        await prisma.commission.create({
+          data: {
+            userId: treatment.performer.id,
+            treatmentId: treatment.id,
+            baseAmount: subtotal,
+            commissionRate: treatment.service.commissionRate,
+            commissionAmount: commissionAmount,
+            periodMonth,
+            periodYear
+          }
+        });
+      }
+    }
   }
 
   async getPaymentsByVisit(visitId: string) {
