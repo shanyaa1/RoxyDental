@@ -3,13 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Sparkles,
-  TrendingUp,
-  Users,
-  X,
-  AlertTriangle,
-} from "lucide-react";
+import { Sparkles, TrendingUp, Users, X, AlertTriangle, Activity, Calendar } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -19,6 +13,8 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  Area,
+  AreaChart,
 } from "recharts";
 import { aiService, PredictionData } from "@/services/ai.service";
 
@@ -38,7 +34,7 @@ export default function PredictionModal({ onClose }: Props) {
   const fetchPrediction = async () => {
     try {
       const response = await aiService.getPrediction();
-
+      
       if (response.status === "success" || response.status === "warning") {
         setData(response.data);
         if (response.data.length === 0 && response.message) {
@@ -48,11 +44,11 @@ export default function PredictionModal({ onClose }: Props) {
         setError(response.message || "Gagal memuat prediksi");
       }
     } catch (err: any) {
-      console.error("Prediction fetch error:", err);
+      console.error('Prediction fetch error:', err);
       setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Tidak dapat terhubung ke layanan prediksi"
+        err.response?.data?.message || 
+        err.message || 
+        "Tidak dapat terhubung ke layanan prediksi"
       );
     } finally {
       setLoading(false);
@@ -66,55 +62,56 @@ export default function PredictionModal({ onClose }: Props) {
       maximumFractionDigits: 0,
     }).format(value);
 
-  /* ================= LOADING ================= */
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-        <div className="bg-white px-8 py-6 rounded-2xl shadow-2xl flex items-center gap-3">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pink-600" />
-          <span className="text-gray-700">Memuat prediksi...</span>
+      <div className="fixed inset-0 z-9999 flex items-center justify-center bg-gradient-to-br from-black/60 via-purple-900/20 to-pink-900/20 backdrop-blur-md animate-in fade-in duration-300">
+        <div className="bg-white/95 backdrop-blur-xl px-10 py-8 rounded-3xl shadow-2xl border border-white/20 flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-pink-200"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-pink-600 absolute top-0 left-0"></div>
+          </div>
+          <div className="text-center">
+            <span className="text-gray-800 font-semibold text-lg">Memuat prediksi...</span>
+            <p className="text-gray-500 text-sm mt-1">Menganalisis data klinik Anda</p>
+          </div>
         </div>
       </div>
     );
   }
 
-  /* ================= ERROR ================= */
   if (error) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <Card className="w-full max-w-md rounded-2xl shadow-2xl">
-          <CardHeader className="bg-red-500 text-white rounded-t-2xl">
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
+      <div className="fixed inset-0 z-9999 flex items-center justify-center bg-gradient-to-br from-black/60 via-red-900/20 to-orange-900/20 backdrop-blur-md p-4 animate-in fade-in duration-300">
+        <Card className="w-full max-w-md rounded-3xl shadow-2xl border-0 overflow-hidden animate-in zoom-in duration-300">
+          <CardHeader className="bg-gradient-to-r from-red-500 via-red-600 to-rose-600 text-white p-6">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="bg-white/20 p-2 rounded-full">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
               Prediksi Tidak Tersedia
             </CardTitle>
           </CardHeader>
-
-          <CardContent className="p-6 space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-700 text-sm">{error}</p>
+          <CardContent className="p-6 space-y-4 bg-gradient-to-b from-white to-gray-50">
+            <div className="bg-gradient-to-r from-red-50 to-rose-50 border-l-4 border-red-500 rounded-lg p-4 shadow-sm">
+              <p className="text-red-800 text-sm font-medium">{error}</p>
             </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-blue-900 font-semibold text-sm mb-2">
+            
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-lg p-4 shadow-sm">
+              <p className="text-blue-900 font-bold text-sm mb-3 flex items-center gap-2">
+                <Activity className="w-4 h-4" />
                 Langkah Troubleshooting:
               </p>
-              <ol className="text-blue-800 text-xs space-y-1 list-decimal list-inside">
-                <li>Pastikan AI Service berjalan</li>
-                <li>
-                  Jalankan:
-                  <code className="bg-blue-100 px-1 rounded ml-1">
-                    uvicorn api:app --reload
-                  </code>
-                </li>
-                <li>Minimal 5 minggu data transaksi</li>
-                <li>Cek koneksi database (.env)</li>
+              <ol className="text-blue-800 text-xs space-y-2 list-decimal list-inside ml-2">
+                <li className="leading-relaxed">Pastikan AI Service berjalan di terminal terpisah</li>
+                <li className="leading-relaxed">Jalankan: <code className="bg-blue-200/50 px-2 py-0.5 rounded font-mono text-xs">cd roxydental-ai && uvicorn api:app --reload</code></li>
+                <li className="leading-relaxed">Pastikan minimal 5 minggu data transaksi tersedia</li>
+                <li className="leading-relaxed">Cek koneksi database di file .env</li>
               </ol>
             </div>
 
-            <Button
-              onClick={onClose}
-              className="w-full bg-red-600 hover:bg-red-700 text-white"
+            <Button 
+              onClick={onClose} 
+              className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 py-6 rounded-xl font-semibold"
             >
               Tutup
             </Button>
@@ -124,25 +121,28 @@ export default function PredictionModal({ onClose }: Props) {
     );
   }
 
-  /* ================= DATA KOSONG ================= */
   if (data.length === 0) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <Card className="w-full max-w-md rounded-2xl shadow-2xl">
-          <CardHeader className="bg-yellow-500 text-white rounded-t-2xl">
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
+      <div className="fixed inset-0 z-9999 flex items-center justify-center bg-gradient-to-br from-black/60 via-yellow-900/20 to-orange-900/20 backdrop-blur-md p-4 animate-in fade-in duration-300">
+        <Card className="w-full max-w-md rounded-3xl shadow-2xl border-0 overflow-hidden animate-in zoom-in duration-300">
+          <CardHeader className="bg-gradient-to-r from-yellow-500 via-yellow-600 to-amber-600 text-white p-6">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="bg-white/20 p-2 rounded-full">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
               Data Belum Tersedia
             </CardTitle>
           </CardHeader>
-
-          <CardContent className="p-6 space-y-4">
-            <p className="text-gray-700">
-              Minimal 5 minggu data historis diperlukan untuk prediksi.
-            </p>
-            <Button
-              onClick={onClose}
-              className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
+          <CardContent className="p-6 space-y-4 bg-gradient-to-b from-white to-gray-50">
+            <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-l-4 border-yellow-500 rounded-lg p-4 shadow-sm">
+              <p className="text-gray-800 font-medium leading-relaxed">
+                Data transaksi belum mencukupi untuk membuat prediksi. 
+                Minimal 5 minggu data historis diperlukan.
+              </p>
+            </div>
+            <Button 
+              onClick={onClose} 
+              className="w-full bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-700 hover:to-amber-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 py-6 rounded-xl font-semibold"
             >
               Tutup
             </Button>
@@ -152,119 +152,207 @@ export default function PredictionModal({ onClose }: Props) {
     );
   }
 
-  /* ================= DATA ================= */
   const totalRevenue = data.reduce((a, c) => a + c.revenue, 0);
   const avgRevenue = totalRevenue / data.length;
   const totalPatients = data.reduce((a, c) => a + c.patients, 0);
+  const avgPatients = totalPatients / data.length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <Card className="w-full max-w-3xl max-h-[85vh] overflow-hidden relative rounded-2xl shadow-2xl">
+    <div className="fixed inset-0 z-9999 bg-gradient-to-br from-black/60 via-purple-900/30 to-pink-900/30 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
+      <Card className="w-full max-w-4xl relative pointer-events-auto rounded-3xl shadow-2xl border-0 overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in duration-300">
 
-        {/* CLOSE BUTTON */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-20 bg-black/30 text-white rounded-full p-1 hover:bg-black/40"
+          className="absolute top-5 right-5 text-white hover:text-gray-200 z-10 bg-white/20 hover:bg-white/30 rounded-full p-2 backdrop-blur-md transition-all duration-200 hover:scale-110 shadow-lg"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* HEADER */}
-        <CardHeader className="bg-linear-to-r from-pink-500 to-rose-500 text-white rounded-t-2xl sticky top-0 z-10">
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5" />
-            Prediksi Kinerja Klinik
-          </CardTitle>
+        <CardHeader className="bg-gradient-to-r from-pink-500 via-purple-500 to-rose-500 text-white p-6 rounded-t-3xl shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm shadow-lg">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <div>
+              <CardTitle className="text-2xl font-bold">Prediksi Kinerja Klinik</CardTitle>
+              <p className="text-white/80 text-sm mt-1">Analisis AI untuk 4 minggu ke depan</p>
+            </div>
+          </div>
         </CardHeader>
 
-        {/* CONTENT (SCROLL DI SINI) */}
-        <CardContent className="p-6 space-y-6 overflow-y-auto max-h-[calc(85vh-80px)]">
+        <CardContent className="p-6 space-y-6 overflow-y-auto flex-1 bg-gradient-to-b from-white to-gray-50">
 
-          {/* CHART */}
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(d) =>
-                    new Date(d).toLocaleDateString("id-ID", {
-                      day: "2-digit",
-                      month: "short",
-                    })
-                  }
-                />
-                <YAxis
-                  yAxisId="left"
-                  tickFormatter={(v) => `Rp ${v / 1_000_000}jt`}
-                />
-                <YAxis yAxisId="right" orientation="right" />
-
-                <Tooltip
-                  formatter={(value, name) => [
-                    name === "Revenue (Rp)"
-                      ? formatCurrency(value as number)
-                      : value,
-                    name === "Revenue (Rp)" ? "Pendapatan" : "Pasien",
-                  ]}
-                />
-
-                <Legend />
-
-                <Line
-                  yAxisId="left"
-                  dataKey="revenue"
-                  stroke="#E91E63"
-                  strokeWidth={3}
-                  name="Revenue (Rp)"
-                />
-                <Line
-                  yAxisId="right"
-                  dataKey="patients"
-                  stroke="#10B981"
-                  strokeWidth={3}
-                  name="Jumlah Pasien"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* SUMMARY */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-purple-50 p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-1">
-                <TrendingUp className="w-4 h-4 text-purple-700" />
-                <p className="font-semibold text-purple-900">
-                  Estimasi Pendapatan
-                </p>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 text-white">
+              <div className="flex items-center justify-between mb-3">
+                <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <Calendar className="w-5 h-5 opacity-60" />
               </div>
-              <p className="text-lg font-bold text-purple-700">
-                {formatCurrency(totalRevenue)}
-              </p>
-              <p className="text-xs text-gray-500">
-                Rata-rata {formatCurrency(avgRevenue)} / minggu
-              </p>
+              <p className="text-white/90 text-sm font-medium mb-1">Total Pendapatan</p>
+              <p className="text-2xl font-bold mb-1">{formatCurrency(totalRevenue)}</p>
+              <p className="text-xs text-white/70">4 minggu ke depan</p>
             </div>
 
-            <div className="bg-green-50 p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-1">
-                <Users className="w-4 h-4 text-green-700" />
-                <p className="font-semibold text-green-900">
-                  Estimasi Pasien
-                </p>
+            <div className="bg-gradient-to-br from-green-500 to-green-600 p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 text-white">
+              <div className="flex items-center justify-between mb-3">
+                <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                  <Users className="w-5 h-5" />
+                </div>
+                <Activity className="w-5 h-5 opacity-60" />
               </div>
-              <p className="text-lg font-bold text-green-700">
-                {Math.round(totalPatients)} orang
-              </p>
-              <p className="text-xs text-gray-500">
-                ~{Math.round(totalPatients / data.length)} pasien / minggu
-              </p>
+              <p className="text-white/90 text-sm font-medium mb-1">Total Pasien</p>
+              <p className="text-2xl font-bold mb-1">{Math.round(totalPatients)} orang</p>
+              <p className="text-xs text-white/70">4 minggu ke depan</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-pink-500 to-rose-600 p-5 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 text-white">
+              <div className="flex items-center justify-between mb-3">
+                <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <TrendingUp className="w-5 h-5 opacity-60" />
+              </div>
+              <p className="text-white/90 text-sm font-medium mb-1">Rata-rata/Minggu</p>
+              <p className="text-2xl font-bold mb-1">{formatCurrency(avgRevenue)}</p>
+              <p className="text-xs text-white/70">~{Math.round(avgPatients)} pasien</p>
+            </div>
+          </div>
+
+          {/* Chart Container */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-pink-600" />
+              Grafik Prediksi
+            </h3>
+            <div className="h-[320px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#E91E63" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#E91E63" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorPatients" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(d) =>
+                      new Date(d).toLocaleDateString("id-ID", {
+                        day: "2-digit",
+                        month: "short",
+                      })
+                    }
+                    stroke="#888"
+                    style={{ fontSize: '12px' }}
+                  />
+                  <YAxis
+                    yAxisId="left"
+                    tickFormatter={(v) => `${v / 1_000_000}jt`}
+                    stroke="#E91E63"
+                    style={{ fontSize: '12px' }}
+                  />
+                  <YAxis 
+                    yAxisId="right" 
+                    orientation="right" 
+                    stroke="#10B981"
+                    style={{ fontSize: '12px' }}
+                  />
+
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      border: 'none',
+                      borderRadius: '12px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      padding: '12px'
+                    }}
+                    formatter={(value, name) => {
+                      const safeValue = typeof value === "number" ? value : 0;
+                      return [
+                        name === "Revenue (Rp)"
+                          ? formatCurrency(safeValue)
+                          : safeValue,
+                        name === "Revenue (Rp)" ? "Pendapatan" : "Pasien",
+                      ];
+                    }}
+                  />
+
+                  <Legend 
+                    wrapperStyle={{ paddingTop: '20px' }}
+                    iconType="circle"
+                  />
+
+                  <Line
+                    yAxisId="left"
+                    dataKey="revenue"
+                    stroke="#E91E63"
+                    strokeWidth={3}
+                    name="Revenue (Rp)"
+                    dot={{ fill: '#E91E63', strokeWidth: 2, r: 5 }}
+                    activeDot={{ r: 7 }}
+                    fill="url(#colorRevenue)"
+                  />
+                  <Line
+                    yAxisId="right"
+                    dataKey="patients"
+                    stroke="#10B981"
+                    strokeWidth={3}
+                    name="Jumlah Pasien"
+                    dot={{ fill: '#10B981', strokeWidth: 2, r: 5 }}
+                    activeDot={{ r: 7 }}
+                    fill="url(#colorPatients)"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Weekly Breakdown */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-purple-600" />
+              Rincian Per Minggu
+            </h3>
+            <div className="space-y-3">
+              {data.map((week, idx) => (
+                <div 
+                  key={idx}
+                  className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100 hover:border-pink-200 hover:shadow-md transition-all duration-200"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="bg-gradient-to-br from-pink-500 to-purple-600 text-white font-bold w-12 h-12 rounded-xl flex items-center justify-center shadow-md">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-800">
+                        {new Date(week.date).toLocaleDateString("id-ID", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric"
+                        })}
+                      </p>
+                      <p className="text-sm text-gray-500">Minggu ke-{idx + 1}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-lg text-pink-600">{formatCurrency(week.revenue)}</p>
+                    <p className="text-sm text-gray-600">{Math.round(week.patients)} pasien</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
           <Button
             onClick={onClose}
-            className="w-full bg-pink-600 hover:bg-pink-700 text-white"
+            className="w-full bg-gradient-to-r from-pink-600 via-purple-600 to-rose-600 hover:from-pink-700 hover:via-purple-700 hover:to-rose-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 py-6 rounded-xl font-semibold text-lg"
           >
             Tutup
           </Button>

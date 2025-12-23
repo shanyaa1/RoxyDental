@@ -4,16 +4,11 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, isAuthenticated, loading: authLoading } = useAuth();
+  const { register, loading: authLoading } = useAuth();
 
   const [formData, setFormData] = useState({
     username: "",
@@ -22,73 +17,70 @@ export default function RegisterPage() {
     confirmPassword: "",
     fullName: "",
     phone: "",
-    specialization: ""
+    specialization: "",
   });
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
+  // ✅ Redirect hanya setelah sukses registrasi (bukan berdasarkan isAuthenticated)
   useEffect(() => {
-    // Jika sudah terautentikasi, arahkan keluar dari halaman registrasi (hindari redirect ke /register lagi)
-    if (!authLoading && isAuthenticated) {
-      router.push('/');
-    }
-  }, [isAuthenticated, authLoading, router]);
+    if (!showSuccessModal) return;
+    const t = setTimeout(() => router.push("/login"), 2000);
+    return () => clearTimeout(t);
+  }, [showSuccessModal, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const validateForm = () => {
-        if (
-        !formData.username ||
-        !formData.email ||
-        !formData.password ||
-        !formData.confirmPassword ||
-        !formData.fullName ||
-        !formData.phone
-      ) {
-        setError("Harap lengkapi semua data yang wajib diisi");
-        return false;
-      }
+    if (
+      !formData.username ||
+      !formData.email ||
+      !formData.password ||
+      !formData.confirmPassword ||
+      !formData.fullName ||
+      !formData.phone
+    ) {
+      setError("Harap lengkapi semua data yang wajib diisi");
+      return false;
+    }
 
-      if (formData.username.length < 3) {
-        setError("Username minimal 3 karakter");
-        return false;
-      }
+    if (formData.username.length < 3) {
+      setError("Username minimal 3 karakter");
+      return false;
+    }
 
-      // 3️⃣ Validasi email
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        setError("Format email tidak valid");
-        return false;
-      }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      setError("Format email tidak valid");
+      return false;
+    }
 
-      if (formData.password.length < 6) {
-        setError("Password minimal 6 karakter");
-        return false;
-      }
+    if (formData.password.length < 6) {
+      setError("Password minimal 6 karakter");
+      return false;
+    }
 
-      if (formData.password !== formData.confirmPassword) {
-        setError("Password tidak cocok");
-        return false;
-      }
+    if (formData.password !== formData.confirmPassword) {
+      setError("Password tidak cocok");
+      return false;
+    }
 
-      if (formData.fullName.length < 3) {
-        setError("Nama lengkap minimal 3 karakter");
-        return false;
-      }
+    if (formData.fullName.length < 3) {
+      setError("Nama lengkap minimal 3 karakter");
+      return false;
+    }
 
-      if (formData.phone.length < 10) {
-        setError("Nomor telepon minimal 10 digit");
-        return false;
-      }
+    if (formData.phone.length < 10) {
+      setError("Nomor telepon minimal 10 digit");
+      return false;
+    }
 
-      return true;
+    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -98,7 +90,6 @@ export default function RegisterPage() {
     if (!validateForm()) return;
 
     setLoading(true);
-
     try {
       await register({
         username: formData.username,
@@ -106,15 +97,10 @@ export default function RegisterPage() {
         password: formData.password,
         fullName: formData.fullName,
         phone: formData.phone,
-        specialization: formData.specialization || undefined
+        specialization: formData.specialization || undefined,
       });
 
       setShowSuccessModal(true);
-
-      setTimeout(() => {
-        router.push("/login");
-      }, 2000);
-
     } catch (err: any) {
       setError(err?.message || "Registrasi gagal. Silakan coba lagi.");
     } finally {
@@ -125,50 +111,56 @@ export default function RegisterPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
-          </div>
-        );
-      }
-
-      return (
-        <div className="min-h-screen w-full flex flex-col lg:flex-row">
-          <div className="hidden lg:flex relative flex-col justify-center items-center lg:w-2/5 overflow-hidden">
-
-      {/* Background Image */}
-      <Image
-        src="/images/perawat.jpg"
-        alt="POLADC Background"
-        fill
-        className="object-cover"
-        priority
-      />
-
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(135deg, rgba(255,221,230,0.85) 0%, rgba(255,202,212,0.85) 40%, rgba(255,180,200,0.85) 100%)",
-        }}
-      />
-      <div className="absolute top-10 right-10 w-32 h-32 bg-white/20 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-20 left-10 w-40 h-40 bg-pink-300/30 rounded-full blur-3xl"></div>
-      <div className="relative z-10 text-center px-8">
-        <h1 className="text-5xl font-bold text-gray-900 mb-6">
-          Bergabung dengan <span className="text-pink-600">POLADC</span>
-        </h1>
-        <p className="text-xl text-gray-700 mb-8">
-          Daftar sebagai Perawat dan mulai kelola pasien dengan sistem yang efisien
-        </p>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500" />
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen w-full flex flex-col lg:flex-row">
+      {/* LEFT / BACKGROUND */}
+      <div className="hidden lg:flex relative flex-col justify-center items-center lg:w-2/5 overflow-hidden">
+        {/* Background Image */}
+        <div className="absolute inset-0">
+          <Image
+            src="/images/perawat.jpg"
+            alt="POLADC Background"
+            fill
+            // ✅ Karena kolom kiri hanya 2/5 (≈40%) di desktop, bukan 100vw
+            sizes="(min-width: 1024px) 40vw, 100vw"
+            className="object-cover"
+            priority
+          />
+        </div>
+
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(255,221,230,0.85) 0%, rgba(255,202,212,0.85) 40%, rgba(255,180,200,0.85) 100%)",
+          }}
+        />
+
+        <div className="absolute top-10 right-10 w-32 h-32 bg-white/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 left-10 w-40 h-40 bg-pink-300/30 rounded-full blur-3xl" />
+
+        <div className="relative z-10 text-center px-8">
+          <h1 className="text-5xl font-bold text-gray-900 mb-6">
+            Bergabung dengan <span className="text-pink-600">POLADC</span>
+          </h1>
+          <p className="text-xl text-gray-700 mb-8">
+            Daftar sebagai Perawat dan mulai kelola pasien dengan sistem yang efisien
+          </p>
+        </div>
       </div>
 
+      {/* RIGHT / FORM */}
       <div className="flex flex-col w-full lg:w-3/5 bg-white min-h-screen overflow-y-auto">
         <div className="flex flex-col justify-center items-center flex-1 px-6 sm:px-8 md:px-12 py-8 sm:py-10">
           <div className="w-full max-w-2xl">
-            <div className="lg:hidden mb-8 -mx-6 sm:-mx-8 md:-mx-12 -mt-8 sm:-mt-10 px-6 sm:px-8 md:px-12 py-8 rounded-b-3xl"
-              style={{
-                background: "linear-gradient(135deg, #FFDDE6 0%, #FFB4C8 100%)",
-              }}
+            <div
+              className="lg:hidden mb-8 -mx-6 sm:-mx-8 md:-mx-12 -mt-8 sm:-mt-10 px-6 sm:px-8 md:px-12 py-8 rounded-b-3xl"
+              style={{ background: "linear-gradient(135deg, #FFDDE6 0%, #FFB4C8 100%)" }}
             >
               <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 text-center mb-2">
                 Daftar Akun
@@ -179,23 +171,23 @@ export default function RegisterPage() {
             </div>
 
             <div className="flex flex-col items-center mb-8">
-             <div
-              className="rounded-full flex items-center justify-center shadow-lg mb-4 overflow-hidden"
-              style={{
-                width: "80px",
-                height: "80px",
-                background: "linear-gradient(135deg, #FF7AA2 0%, #FF5E8A 100%)",
-              }}
-            >
-              <Image
-                src="/images/putih.png"
-                alt="Logo POLADC"
-                width={56}
-                height={56}
-                className="object-contain"
-                priority
-              />
-            </div>
+              <div
+                className="rounded-full flex items-center justify-center shadow-lg mb-4 overflow-hidden"
+                style={{
+                  width: "80px",
+                  height: "80px",
+                  background: "linear-gradient(135deg, #FF7AA2 0%, #FF5E8A 100%)",
+                }}
+              >
+                <Image
+                  src="/images/putih.png"
+                  alt="Logo POLADC"
+                  width={56}
+                  height={56}
+                  className="object-contain"
+                  priority
+                />
+              </div>
 
               <h2 className="text-2xl sm:text-3xl font-bold text-pink-500 mb-1">
                 Registrasi Perawat
@@ -305,7 +297,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-pink-50 text-pink-600 font-semibold text-xs hover:bg-pink-100 transition-colors"
-                      onClick={() => setShowPassword(!showPassword)}
+                      onClick={() => setShowPassword((v) => !v)}
                     >
                       {showPassword ? "Hide" : "Show"}
                     </button>
@@ -329,7 +321,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-pink-50 text-pink-600 font-semibold text-xs hover:bg-pink-100 transition-colors"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      onClick={() => setShowConfirmPassword((v) => !v)}
                     >
                       {showConfirmPassword ? "Hide" : "Show"}
                     </button>
@@ -345,8 +337,12 @@ export default function RegisterPage() {
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
                     <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
                     </svg>
                     Memproses...
                   </span>
@@ -388,8 +384,7 @@ export default function RegisterPage() {
 
                 <div className="text-center space-y-4">
                   <p className="text-gray-600 text-sm leading-relaxed">
-                    Akun Anda telah berhasil dibuat.  
-                    Silakan masuk menggunakan email dan password yang telah didaftarkan.
+                    Akun Anda telah berhasil dibuat. Silakan masuk menggunakan email dan password yang telah didaftarkan.
                   </p>
 
                   <button
