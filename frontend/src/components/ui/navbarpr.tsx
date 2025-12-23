@@ -14,6 +14,7 @@ import {
   LogOut,
   LayoutDashboard,
   Loader2,
+  CreditCard,
 } from "lucide-react";
 import { nurseProfileService, NurseProfile } from "@/services/nurse-profile.service";
 
@@ -90,9 +91,9 @@ export default function Navbar() {
                   <span className="text-sm font-medium">{getDisplayName()}</span>
                   {profile?.profilePhoto ? (
                     <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white">
-                      <img 
-                        src={profile.profilePhoto} 
-                        alt="Profile" 
+                      <img
+                        src={profile.profilePhoto}
+                        alt="Profile"
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -111,9 +112,9 @@ export default function Navbar() {
                 <div className="p-4 border-b border-gray-200 flex gap-3">
                   {profile.profilePhoto ? (
                     <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-pink-200">
-                      <img 
-                        src={profile.profilePhoto} 
-                        alt="Profile" 
+                      <img
+                        src={profile.profilePhoto}
+                        alt="Profile"
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -143,6 +144,12 @@ export default function Navbar() {
                     icon={<LayoutDashboard className="w-5 h-5" />}
                     text="Dashboard"
                     active={pathname === "/dashboard/perawat/mainpr"}
+                  />
+                  <DropdownItem
+                    href="/dashboard/perawat/pembayaran"
+                    icon={<CreditCard className="w-5 h-5" />}
+                    text="Pembayaran"
+                    active={pathname === "/dashboard/perawat/pembayaran"}
                   />
                   <DropdownItem
                     href="/dashboard/perawat/akunpr"
@@ -236,11 +243,10 @@ function DropdownItem({ href, icon, text, active }: {
   return (
     <Link
       href={href}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-md mx-2 my-1 transition ${
-        active
-          ? "bg-pink-100 text-pink-600 font-semibold"
-          : "text-gray-700 hover:bg-gray-100"
-      }`}
+      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-md mx-2 my-1 transition ${active
+        ? "bg-pink-100 text-pink-600 font-semibold"
+        : "text-gray-700 hover:bg-gray-100"
+        }`}
     >
       <span className="w-5 h-5 flex items-center justify-center">{icon}</span>
       <span className="font-medium">{text}</span>

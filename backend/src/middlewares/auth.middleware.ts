@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient, UserRole } from '../../generated/prisma';
-
-const prisma = new PrismaClient();
+import { UserRole } from '../../generated/prisma';
+import { prisma } from '../config/database';
 
 interface JwtPayload {
   id: string;
@@ -63,7 +62,7 @@ export const authenticate = async (
     console.error('Authentication error:', error);
     res.status(401).json({
       success: false,
-      message: 'Token tidak valid'
+      message: 'Token tidak valid or session expired'
     });
     return;
   }

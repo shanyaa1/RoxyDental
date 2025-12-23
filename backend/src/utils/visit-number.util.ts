@@ -1,15 +1,13 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/database';
 
 export async function generateVisitNumber(): Promise<string> {
   const today = new Date();
   const year = today.getFullYear();
   const month = String(today.getMonth() + 1).padStart(2, '0');
   const day = String(today.getDate()).padStart(2, '0');
-  
+
   const prefix = `RM-${year}${month}${day}`;
-  
+
   const lastVisit = await prisma.visit.findFirst({
     where: {
       visitNumber: {
